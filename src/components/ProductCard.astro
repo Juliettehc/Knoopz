@@ -1,0 +1,18 @@
+---
+import { t, formatPrice, productPath, type Lang } from '../i18n/ui';
+import type { Product } from '../data/catalog';
+
+interface Props { lang: Lang; product: Product }
+const { lang, product: p } = Astro.props;
+const sold = p.status === 'sold';
+---
+<a class="card" href={productPath(lang, p.slug)} data-status={p.status}>
+  <div class="card-media ph ph-tile">
+    <span class="ph-label">[{lang === 'nl' ? 'Productfoto' : 'Product photo'}]</span>
+    {sold && <span class="badge">{t(lang, 'product.soldOut')}</span>}
+  </div>
+  <div class="card-meta">
+    <span class="card-name">{p.name[lang]}</span>
+    <span class="muted">{sold ? t(lang, 'product.soldOut') : formatPrice(lang, p.price)}</span>
+  </div>
+</a>

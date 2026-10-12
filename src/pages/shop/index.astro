@@ -1,0 +1,14 @@
+---
+import ListingView from '../../views/ListingView.astro';
+import { products } from '../../data/catalog';
+import { t, routes } from '../../i18n/ui';
+const lang = 'nl';
+const other = lang === 'nl' ? 'en' : 'nl';
+---
+<ListingView
+  lang={lang}
+  title={t(lang, 'nav.allProducts')}
+  crumbs={[{ label: t(lang, 'nav.shop') }]}
+  items={products}
+  alternate={routes.shop[other]}
+/>

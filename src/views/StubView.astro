@@ -1,0 +1,18 @@
+---
+import Base from '../layouts/Base.astro';
+import { t, routes, type Lang, type RouteKey } from '../i18n/ui';
+
+interface Props { lang: Lang; page: RouteKey; title: string }
+const { lang, page, title } = Astro.props;
+const other: Lang = lang === 'nl' ? 'en' : 'nl';
+---
+<Base lang={lang} title={title} alternate={routes[page][other]}>
+  <section class="wrap section stub">
+    <h1 class="h1">{title}</h1>
+    <p class="lead">{t(lang, 'page.soon')}</p>
+  </section>
+</Base>
+
+<style>
+  .stub { display: flex; flex-direction: column; gap: 20px; min-height: 50vh; }
+</style>

@@ -1,0 +1,75 @@
+---
+import Base from '../layouts/Base.astro';
+import ProductCard from '../components/ProductCard.astro';
+import { t, routes, type Lang } from '../i18n/ui';
+import type { Product } from '../data/catalog';
+
+interface Props {
+  lang: Lang;
+  title: string;
+  intro?: string;
+  crumbs: { label: string; href?: string }[];
+  items: Product[];
+  alternate: string;
+}
+const { lang, title, intro, crumbs, items, alternate } = Astro.props;
+---
+<Base lang={lang} title={title} alternate={alternate}>
+  <section class="wrap intro">
+    <nav aria-label={lang === 'nl' ? 'Kruimelpad' : 'Breadcrumb'} class="crumbs muted">
+      <a href={routes.home[lang]}>Home</a>
+      {crumbs.map((c) => (
+        <>
+          <span aria-hidden="true">/</span>
+          {c.href ? <a href={c.href}>{c.label}</a> : <span aria-current="page">{c.label}</span>}
+        </>
+      ))}
+    </nav>
+    <h1 class="h1">{title}</h1>
+    {intro && <p class="lead">{intro}</p>}
+  </section>
+
+  <section class="wrap listing" data-listing>
+    <div class="filters">
+      <div class="filter-group" role="group" aria-label={t(lang, 'filter.label')}>
+        <button type="button" class="filter" aria-pressed="true" data-filter="all">{t(lang, 'filter.all')}</button>
+        <button type="button" class="filter" aria-pressed="false" data-filter="available">{t(lang, 'filter.available')}</button>
+        <button type="button" class="filter" aria-pressed="false" data-filter="sold">{t(lang, 'filter.sold')}</button>
+      </div>
+      <span class="muted count" aria-live="polite"><span data-count>{items.length}</span> {t(lang, 'filter.count')}</span>
+    </div>
+    <div class="grid" data-grid>
+      {items.map((p) => <ProductCard lang={lang} product={p} />)}
+    </div>
+  </section>
+</Base>
+
+<style>
+  .intro { padding-top: var(--s5); display: flex; flex-direction: column; gap: 16px; }
+  .crumbs { display: flex; gap: 8px; font-size: 12px; }
+  .crumbs a { text-decoration: none; }
+  .crumbs a:hover { text-decoration: underline; }
+  .listing { padding-top: var(--s4); padding-bottom: var(--s6); display: flex; flex-direction: column; gap: 28px; }
+  .count { font-size: 13px; }
+</style>
+
+<script>
+  document.querySelectorAll<HTMLElement>('[data-listing]').forEach((root) => {
+    const buttons = root.querySelectorAll<HTMLButtonElement>('[data-filter]');
+    const cards = root.querySelectorAll<HTMLElement>('[data-grid] .card');
+    const count = root.querySelector<HTMLElement>('[data-count]')!;
+    buttons.forEach((btn) =>
+      btn.addEventListener('click', () => {
+        const f = btn.dataset.filter;
+        buttons.forEach((b) => b.setAttribute('aria-pressed', String(b === btn)));
+        let n = 0;
+        cards.forEach((c) => {
+          const show = f === 'all' || c.dataset.status === f;
+          c.hidden = !show;
+          if (show) n++;
+        });
+        count.textContent = String(n);
+      }),
+    );
+  });
+</script>

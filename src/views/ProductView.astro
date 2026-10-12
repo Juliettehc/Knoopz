@@ -1,0 +1,156 @@
+---
+import Base from '../layouts/Base.astro';
+import ProductCard from '../components/ProductCard.astro';
+import { t, formatPrice, routes, dropPath, productPath, type Lang } from '../i18n/ui';
+import { getDrop, productsInDrop, type Product } from '../data/catalog';
+
+interface Props { lang: Lang; product: Product }
+const { lang, product: p } = Astro.props;
+const drop = getDrop(p.dropId)!;
+const sold = p.status === 'sold';
+const more = productsInDrop(p.dropId).filter((x) => x.id !== p.id && x.status === 'available').slice(0, 4);
+const nl = lang === 'nl';
+const photoLabels = nl ? ['Hoofdfoto', 'Achterkant', 'Detail knoop', 'Op model'] : ['Main photo', 'Back', 'Button detail', 'On model'];
+const photos = photoLabels.slice(0, p.images);
+const other: Lang = nl ? 'en' : 'nl';
+---
+<Base lang={lang} title={p.name[lang]} alternate={productPath(other, p.slug)}>
+  <div class="wrap crumbs muted">
+    <a href={routes.shop[lang]}>{t(lang, 'nav.shop')}</a>
+    <span aria-hidden="true">/</span>
+    <a href={dropPath(lang, drop.slug)}>{drop.name[lang]}</a>
+    <span aria-hidden="true">/</span>
+    <span aria-current="page">{p.name[lang]}</span>
+  </div>
+
+  <section class="wrap product">
+    <div class="gallery" data-gallery aria-label={t(lang, 'product.photos')}>
+      <div class="g-main ph ph-tile" data-main>[{photos[0]}]</div>
+      <div class="g-thumbs">
+        {photos.map((label, i) => (
+          <button type="button" class="g-thumb ph ph-tile" aria-label={label} aria-pressed={i === 0 ? 'true' : 'false'} data-thumb={label}></button>
+        ))}
+      </div>
+      <div class="g-strip" tabindex="0">
+        {photos.map((label) => <div class="g-slide ph ph-tile">[{label}]</div>)}
+      </div>
+      <div class="g-dots" aria-hidden="true">
+        {photos.map((_, i) => <span class:list={['dot', { on: i === 0 }]}></span>)}
+      </div>
+    </div>
+
+    <div class="info">
+      <div class="title-block">
+        <span class="eyebrow">{drop.name[lang]}</span>
+        <h1 class="h2">{p.name[lang]}</h1>
+        <span class="price">{sold ? t(lang, 'product.soldOut') : formatPrice(lang, p.price)}</span>
+      </div>
+      <div class="facts muted">
+        {!sold && <span>{t(lang, 'product.unique')}</span>}
+        <span>{t(lang, 'product.size')}</span>
+        <span>{t(lang, 'product.code')}: {p.code}</span>
+      </div>
+      {sold ? (
+        <button type="button" class="btn btn-block" disabled>{t(lang, 'product.soldOut')}</button>
+      ) : (
+        <button type="button" class="btn btn-dark btn-block" data-add={p.id} data-label-add={t(lang, 'product.add')} data-label-in={t(lang, 'product.inCart')}>
+          {t(lang, 'product.add')}
+        </button>
+      )}
+      <span class="muted small">{t(lang, 'product.shippingInfo')}</span>
+      <div class="acc">
+        <details open>
+          <summary>{t(lang, 'product.details')}</summary>
+          <p>[{nl ? 'Materiaal, pasvorm, verzorging.' : 'Material, fit, care.'}]</p>
+        </details>
+        <details>
+          <summary>{t(lang, 'product.button')}</summary>
+          <p>[{nl ? 'Herkomst en verhaal van de vintage knoop op deze pet.' : 'Origin and story of the vintage button on this cap.'}]</p>
+        </details>
+        <details>
+          <summary>{t(lang, 'product.shipping')}</summary>
+          <p>[{nl ? 'Verzendkosten, levertijd en retourbeleid.' : 'Shipping costs, delivery time and returns policy.'}]</p>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  {more.length > 0 && (
+    <section class="rule">
+      <div class="section wrap stack">
+        <h2 class="h3">{t(lang, 'product.more')} {drop.name[lang]}</h2>
+        <div class="grid">{more.map((x) => <ProductCard lang={lang} product={x} />)}</div>
+      </div>
+    </section>
+  )}
+</Base>
+
+<style>
+  .crumbs { display: flex; gap: 8px; font-size: 12px; padding-top: 20px; padding-bottom: 20px; }
+  .crumbs a { text-decoration: none; }
+  .crumbs a:hover { text-decoration: underline; }
+  .product { display: grid; grid-template-columns: 7fr 5fr; gap: var(--s5); align-items: start; padding-bottom: var(--s6); }
+  .gallery { display: flex; flex-direction: column; gap: 12px; }
+  .g-main { aspect-ratio: 4 / 5; }
+  .g-thumbs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+  .g-thumb { aspect-ratio: 4 / 5; border: 0; padding: 0; }
+  .g-thumb[aria-pressed='true'] { outline: 1px solid var(--ink); outline-offset: -1px; }
+  .g-strip, .g-dots { display: none; }
+  .info { position: sticky; top: calc(var(--header-h) + 24px); display: flex; flex-direction: column; gap: 24px; }
+  .title-block { display: flex; flex-direction: column; gap: 10px; }
+  .price { font-size: 18px; }
+  .facts { display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
+  .small { font-size: 13px; }
+  .stack { display: flex; flex-direction: column; gap: 32px; }
+  @media (max-width: 760px) {
+    .crumbs { display: none; }
+    .product { grid-template-columns: 1fr; gap: 28px; padding-left: 0; padding-right: 0; }
+    .info { position: static; padding: 0 var(--gutter); gap: 20px; }
+    .g-main, .g-thumbs { display: none; }
+    .g-strip { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; }
+    .g-strip::-webkit-scrollbar { display: none; }
+    .g-slide { flex: 0 0 100%; aspect-ratio: 4 / 5; scroll-snap-align: start; }
+    .g-dots { display: flex; justify-content: center; gap: 8px; margin-top: -32px; position: relative; }
+    .dot { width: 6px; height: 6px; border-radius: 50%; background: #c9c3ba; }
+    .dot.on { background: var(--ink); }
+  }
+</style>
+
+<script>
+  import { addToCart, inCart, onCartChange } from '../scripts/cart';
+
+  // Galerij: miniaturen (desktop) en veegstrook met puntjes (mobiel)
+  document.querySelectorAll<HTMLElement>('[data-gallery]').forEach((g) => {
+    const main = g.querySelector<HTMLElement>('[data-main]')!;
+    const thumbs = g.querySelectorAll<HTMLButtonElement>('[data-thumb]');
+    thumbs.forEach((b) =>
+      b.addEventListener('click', () => {
+        thumbs.forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+        main.textContent = `[${b.dataset.thumb}]`;
+      }),
+    );
+    const strip = g.querySelector<HTMLElement>('.g-strip')!;
+    const dots = g.querySelectorAll<HTMLElement>('.dot');
+    strip.addEventListener('scroll', () => {
+      const i = Math.round(strip.scrollLeft / strip.clientWidth);
+      dots.forEach((d, k) => d.classList.toggle('on', k === i));
+    }, { passive: true });
+  });
+
+  // In winkelwagen: uniek stuk, dus maar één keer toe te voegen
+  document.querySelectorAll<HTMLButtonElement>('[data-add]').forEach((btn) => {
+    const id = btn.dataset.add!;
+    const sync = () => {
+      const has = inCart(id);
+      btn.textContent = has ? btn.dataset.labelIn! : btn.dataset.labelAdd!;
+      btn.classList.toggle('btn-dark', !has);
+      btn.classList.toggle('btn-outline', has);
+    };
+    btn.addEventListener('click', () => {
+      addToCart(id);
+      document.dispatchEvent(new CustomEvent('knoopz:open-cart'));
+    });
+    onCartChange(sync);
+    sync();
+  });
+</script>

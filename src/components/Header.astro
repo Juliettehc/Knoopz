@@ -1,0 +1,176 @@
+---
+import { t, routes, dropPath, type Lang } from '../i18n/ui';
+import { drops } from '../data/catalog';
+
+interface Props { lang: Lang; alternate: string }
+const { lang, alternate } = Astro.props;
+const nlHref = lang === 'nl' ? Astro.url.pathname : alternate;
+const enHref = lang === 'en' ? Astro.url.pathname : alternate;
+---
+<header class="site-header" data-header>
+  <div class="hdr wrap">
+    <div class="hdr-side">
+      <button type="button" class="icon-btn burger" aria-label={t(lang, 'nav.menuOpen')} aria-expanded="false" aria-controls="mobile-menu" data-menu-open>
+        <svg width="22" height="14" viewBox="0 0 22 14" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M0 1h22M0 7h22M0 13h22" /></svg>
+      </button>
+      <nav class="nav-desktop label" aria-label={t(lang, 'nav.main')}>
+        <div class="nav-shop" data-shop>
+          <button type="button" class="nav-link" aria-expanded="false" aria-controls="mega" data-shop-toggle>
+            {t(lang, 'nav.shop')} <span aria-hidden="true" class="caret">▾</span>
+          </button>
+          <div class="mega" id="mega" hidden data-mega>
+            <div class="wrap mega-inner">
+              <div class="mega-col">
+                <span class="eyebrow">{t(lang, 'nav.shop')}</span>
+                <a href={routes.shop[lang]}>{t(lang, 'nav.allProducts')}</a>
+                {drops.map((d) => <a href={dropPath(lang, d.slug)}>{d.name[lang]}</a>)}
+              </div>
+              {drops.map((d) => (
+                <a class="mega-tile" href={dropPath(lang, d.slug)}>
+                  <div class="ph" style="aspect-ratio: 4 / 3"><span>[{d.name[lang]}]</span></div>
+                  <span class="label">{d.name[lang]}</span>
+                </a>
+              ))}
+            </div>
+          </div>
+        </div>
+        <a class="nav-link" href={routes.about[lang]}>{t(lang, 'nav.about')}</a>
+        <a class="nav-link" href={routes.contact[lang]}>{t(lang, 'nav.contact')}</a>
+      </nav>
+    </div>
+
+    <a class="logo" href={routes.home[lang]} aria-label="KNOOPZ home">
+      <img src="/knoopz-logo.png" alt="KNOOPZ" width="900" height="169" />
+    </a>
+
+    <div class="hdr-side hdr-right label">
+      <div class="lang-switch" aria-label={t(lang, 'nav.language')}>
+        <a href={nlHref} hreflang="nl" aria-current={lang === 'nl' ? 'true' : undefined}>NL</a>
+        <span aria-hidden="true">|</span>
+        <a href={enHref} hreflang="en" aria-current={lang === 'en' ? 'true' : undefined}>EN</a>
+      </div>
+      <button type="button" class="cart-btn" aria-label={t(lang, 'cart.open')} aria-controls="cart" aria-expanded="false" data-cart-open>
+        <span class="cart-word">{t(lang, 'cart.title')}</span> (<span data-cart-count>0</span>)
+      </button>
+    </div>
+  </div>
+  <div class="mega-backdrop" hidden data-mega-backdrop></div>
+</header>
+
+<div class="mobile-menu" id="mobile-menu" hidden data-menu>
+  <div class="mm-top">
+    <button type="button" class="icon-btn" aria-label={t(lang, 'nav.menuClose')} data-menu-close>
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M1 1l14 14M15 1L1 15" /></svg>
+    </button>
+    <img src="/knoopz-logo.png" alt="KNOOPZ" width="900" height="169" class="mm-logo" />
+    <span class="mm-spacer"></span>
+  </div>
+  <nav class="mm-nav" aria-label={t(lang, 'nav.main')}>
+    <details open>
+      <summary>{t(lang, 'nav.shop')}</summary>
+      <div class="mm-sub">
+        <a href={routes.shop[lang]}>{t(lang, 'nav.allProducts')}</a>
+        {drops.map((d) => <a href={dropPath(lang, d.slug)}>{d.name[lang]}</a>)}
+      </div>
+    </details>
+    <a href={routes.about[lang]}>{t(lang, 'nav.about')}</a>
+    <a href={routes.contact[lang]}>{t(lang, 'nav.contact')}</a>
+  </nav>
+  <div class="mm-foot">
+    <div class="mm-lang">
+      <a href={nlHref} hreflang="nl" aria-current={lang === 'nl' ? 'true' : undefined}>NL</a>
+      <a href={enHref} hreflang="en" aria-current={lang === 'en' ? 'true' : undefined}>EN</a>
+    </div>
+    <span class="muted">Instagram · TikTok · @knoopz.wear</span>
+  </div>
+</div>
+
+<style>
+  .site-header { position: sticky; top: 0; z-index: 40; background: var(--bg); border-bottom: 1px solid var(--line); }
+  .hdr { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; height: var(--header-h); gap: 12px; }
+  .hdr-side { display: flex; align-items: center; min-width: 0; }
+  .hdr-right { justify-content: flex-end; gap: 24px; }
+  .logo img { height: 24px; width: auto; }
+  .nav-desktop { display: flex; gap: 28px; align-items: center; }
+  .nav-link { background: none; border: 0; padding: 0; text-decoration: none; font: inherit; letter-spacing: inherit; text-transform: inherit; min-height: 44px; display: inline-flex; align-items: center; gap: 6px; }
+  .nav-link:hover { text-decoration: underline; text-underline-offset: 6px; }
+  .caret { font-size: 10px; }
+  .lang-switch { display: flex; gap: 6px; align-items: center; }
+  .lang-switch a { text-decoration: none; color: var(--muted); }
+  .lang-switch a[aria-current] { color: var(--ink); }
+  .cart-btn { background: none; border: 0; padding: 0; min-height: 44px; font: inherit; letter-spacing: inherit; text-transform: inherit; }
+  .icon-btn { width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; background: none; border: 0; padding: 0; }
+  .burger { display: none; margin-left: -12px; }
+
+  .mega { position: absolute; left: 0; right: 0; top: 100%; background: var(--bg); border-bottom: 1px solid var(--line); z-index: 41; text-transform: none; letter-spacing: normal; font-weight: 400; }
+  .mega-inner { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 32px; padding-top: 36px; padding-bottom: 36px; }
+  .mega-col { display: flex; flex-direction: column; gap: 14px; font-size: 15px; }
+  .mega-col a, .mega-tile { text-decoration: none; }
+  .mega-col a:hover { text-decoration: underline; text-underline-offset: 4px; }
+  .mega-tile { display: flex; flex-direction: column; gap: 10px; }
+  .mega-backdrop { position: fixed; inset: 0; top: var(--header-h); background: rgba(20, 20, 20, 0.25); z-index: 39; }
+
+  .mobile-menu { position: fixed; inset: 0; z-index: 60; background: var(--bg); display: flex; flex-direction: column; overflow-y: auto; }
+  .mobile-menu[hidden] { display: none; }
+  .mm-top { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; height: 60px; padding: 0 8px; border-bottom: 1px solid var(--line); flex: none; }
+  .mm-logo { height: 18px; width: auto; }
+  .mm-nav { padding: 16px 20px; display: flex; flex-direction: column; }
+  .mm-nav > a, .mm-nav summary { display: flex; align-items: center; justify-content: space-between; min-height: 72px; border-bottom: 1px solid var(--line); font-family: var(--font-head); font-size: 30px; text-decoration: none; list-style: none; cursor: pointer; }
+  .mm-nav summary::-webkit-details-marker { display: none; }
+  .mm-nav summary::after { content: '+'; font-family: var(--font-body); font-size: 20px; }
+  .mm-nav details[open] summary { border-bottom: 0; }
+  .mm-nav details[open] summary::after { content: '−'; }
+  .mm-nav details[open] { border-bottom: 1px solid var(--line); padding-bottom: 16px; }
+  .mm-sub { display: flex; flex-direction: column; gap: 4px; }
+  .mm-sub a { text-decoration: none; font-size: 16px; min-height: 40px; display: flex; align-items: center; }
+  .mm-foot { margin-top: auto; padding: 24px 20px 32px; display: flex; flex-direction: column; gap: 16px; font-size: 13px; }
+  .mm-lang { display: flex; gap: 8px; }
+  .mm-lang a { min-width: 52px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--line); text-decoration: none; font-size: 12px; font-weight: 500; letter-spacing: 0.12em; }
+  .mm-lang a[aria-current] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+
+  @media (max-width: 760px) {
+    .nav-desktop, .lang-switch, .mega, .mega-backdrop { display: none !important; }
+    .burger { display: inline-flex; }
+    .logo img { height: 18px; }
+    .hdr-right { font-size: 10px; letter-spacing: 0.1em; }
+    .cart-btn { white-space: nowrap; }
+  }
+</style>
+
+<script>
+  const shop = document.querySelector<HTMLElement>('[data-shop]');
+  const toggle = document.querySelector<HTMLButtonElement>('[data-shop-toggle]');
+  const mega = document.querySelector<HTMLElement>('[data-mega]');
+  const backdrop = document.querySelector<HTMLElement>('[data-mega-backdrop]');
+  const setMega = (open: boolean) => {
+    if (!toggle || !mega || !backdrop) return;
+    toggle.setAttribute('aria-expanded', String(open));
+    mega.hidden = !open;
+    backdrop.hidden = !open;
+  };
+  toggle?.addEventListener('click', () => setMega(toggle.getAttribute('aria-expanded') !== 'true'));
+  backdrop?.addEventListener('click', () => setMega(false));
+  if (window.matchMedia('(hover: hover)').matches) {
+    shop?.addEventListener('mouseenter', () => setMega(true));
+    shop?.addEventListener('mouseleave', () => setMega(false));
+  }
+
+  const menu = document.querySelector<HTMLElement>('[data-menu]');
+  const menuOpen = document.querySelector<HTMLButtonElement>('[data-menu-open]');
+  const menuClose = document.querySelector<HTMLButtonElement>('[data-menu-close]');
+  const setMenu = (open: boolean) => {
+    if (!menu || !menuOpen) return;
+    menu.hidden = !open;
+    menuOpen.setAttribute('aria-expanded', String(open));
+    document.body.classList.toggle('locked', open);
+    (open ? menuClose : menuOpen)?.focus();
+  };
+  menuOpen?.addEventListener('click', () => setMenu(true));
+  menuClose?.addEventListener('click', () => setMenu(false));
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (toggle?.getAttribute('aria-expanded') === 'true') { setMega(false); toggle.focus(); }
+    if (menu && !menu.hidden) setMenu(false);
+  });
+</script>

@@ -1,0 +1,82 @@
+---
+import { t, routes, dropPath, type Lang } from '../i18n/ui';
+import { drops } from '../data/catalog';
+
+interface Props { lang: Lang; alternate: string }
+const { lang, alternate } = Astro.props;
+const nlHref = lang === 'nl' ? Astro.url.pathname : alternate;
+const enHref = lang === 'en' ? Astro.url.pathname : alternate;
+const year = new Date().getFullYear();
+---
+<footer class="site-footer rule">
+  <div class="wrap">
+    <div class="cols">
+      <details class="col" open>
+        <summary class="eyebrow">{t(lang, 'footer.shop')}</summary>
+        <div class="links">
+          <a href={routes.shop[lang]}>{t(lang, 'nav.allProducts')}</a>
+          {drops.map((d) => <a href={dropPath(lang, d.slug)}>{d.name[lang]}</a>)}
+        </div>
+      </details>
+      <details class="col" open>
+        <summary class="eyebrow">{t(lang, 'footer.service')}</summary>
+        <div class="links">
+          <a href={routes.contact[lang]}>{t(lang, 'nav.contact')}</a>
+          <a href={routes.faq[lang]}>{t(lang, 'footer.faq')}</a>
+          <a href={routes.shipping[lang]}>{t(lang, 'footer.shipping')}</a>
+        </div>
+      </details>
+      <details class="col" open>
+        <summary class="eyebrow">KNOOPZ</summary>
+        <div class="links">
+          <a href={routes.about[lang]}>{t(lang, 'nav.about')}</a>
+          <a href={routes.terms[lang]}>{t(lang, 'footer.terms')}</a>
+          <a href={routes.privacy[lang]}>{t(lang, 'footer.privacy')}</a>
+        </div>
+      </details>
+      <details class="col" open>
+        <summary class="eyebrow">{t(lang, 'footer.follow')}</summary>
+        <div class="links">
+          <a href="https://www.instagram.com/knoopz.wear/" rel="noopener" target="_blank">Instagram</a>
+          <a href="https://www.tiktok.com/@knoopz.wear" rel="noopener" target="_blank">TikTok</a>
+        </div>
+      </details>
+    </div>
+    <div class="bottom">
+      <img src="/knoopz-logo.png" alt="KNOOPZ" width="900" height="169" />
+      <span>{t(lang, 'footer.payment')}</span>
+      <span>
+        <a href={nlHref} hreflang="nl">NL</a> | <a href={enHref} hreflang="en">EN</a> · © {year} KNOOPZ
+      </span>
+    </div>
+  </div>
+</footer>
+
+<style>
+  .site-footer { padding: 56px 0 40px; font-size: 14px; }
+  .cols { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 32px; }
+  .col summary { list-style: none; pointer-events: none; margin-bottom: 12px; }
+  .col summary::-webkit-details-marker { display: none; }
+  .links { display: flex; flex-direction: column; gap: 10px; }
+  .links a, .bottom a { text-decoration: none; }
+  .links a:hover { text-decoration: underline; text-underline-offset: 4px; }
+  .bottom { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; margin-top: 40px; padding-top: 24px; border-top: 1px solid var(--line); font-size: 12px; color: var(--muted); }
+  .bottom img { height: 16px; width: auto; }
+  @media (max-width: 760px) {
+    .site-footer { padding-top: 16px; }
+    .cols { grid-template-columns: 1fr; gap: 0; }
+    .col { border-bottom: 1px solid var(--line); }
+    .col summary { pointer-events: auto; cursor: pointer; display: flex; justify-content: space-between; align-items: center; min-height: 56px; margin: 0; color: var(--ink); }
+    .col summary::after { content: '+'; font-size: 18px; }
+    .col[open] summary::after { content: '−'; }
+    .links { padding-bottom: 16px; }
+    .bottom { flex-direction: column; align-items: flex-start; }
+  }
+</style>
+
+<script>
+  // Op mobiel starten de footerblokken ingeklapt; op desktop altijd open.
+  if (window.matchMedia('(max-width: 760px)').matches) {
+    document.querySelectorAll<HTMLDetailsElement>('.site-footer details').forEach((d) => (d.open = false));
+  }
+</script>

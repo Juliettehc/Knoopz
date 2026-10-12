@@ -1,0 +1,80 @@
+---
+import Base from '../layouts/Base.astro';
+import ProductCard from '../components/ProductCard.astro';
+import { t, routes, dropPath, type Lang } from '../i18n/ui';
+import { drops, productsInDrop } from '../data/catalog';
+
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const drop = drops[0];
+const featured = productsInDrop(drop.id).slice(0, 4);
+const nl = lang === 'nl';
+---
+<Base lang={lang} alternate={routes.home[lang === 'nl' ? 'en' : 'nl']}>
+  <section class="hero ph">
+    <span class="hero-ph">[{nl ? 'Campagnebeeld Drop 01, model met pet' : 'Campaign image Drop 01, model wearing cap'}]</span>
+    <div class="wrap hero-inner">
+      <span class="eyebrow">{drop.name[lang]} · [{nl ? 'naam drop' : 'drop name'}]</span>
+      <h1 class="h1">{nl ? 'Statement pieces met vintage knopen' : 'Statement pieces with vintage buttons'}</h1>
+      <a class="btn btn-primary" href={dropPath(lang, drop.slug)}>{t(lang, 'home.shopDrop')}</a>
+    </div>
+  </section>
+
+  <section class="section wrap stack">
+    <div class="head-row">
+      <h2 class="h2">{drop.name[lang]}</h2>
+      <a class="link-line" href={dropPath(lang, drop.slug)}>{t(lang, 'home.viewAll')}</a>
+    </div>
+    <div class="grid">
+      {featured.map((p) => <ProductCard lang={lang} product={p} />)}
+    </div>
+  </section>
+
+  <section class="rule">
+    <div class="section wrap story">
+      <div class="ph story-img">[{nl ? 'Detailfoto vintage knoop' : 'Close-up vintage button'}]</div>
+      <div class="story-text">
+        <span class="eyebrow">{t(lang, 'home.about')}</span>
+        <h2 class="h2">[{nl ? 'Kop merkverhaal' : 'Brand story heading'}]</h2>
+        <p class="lead">[{nl ? 'Twee zinnen over de vintage knopen. Tekst van jullie.' : 'Two sentences about the vintage buttons.'}]</p>
+        <a class="link-line" href={routes.about[lang]}>{t(lang, 'home.readStory')}</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="rule">
+    <div class="section wrap stack">
+      <div class="head-row">
+        <h2 class="h2">[{nl ? 'Kop Instagram-blok' : 'Instagram heading'}]</h2>
+        <a class="link-line" href="https://www.instagram.com/knoopz.wear/" target="_blank" rel="noopener">{t(lang, 'home.follow')}</a>
+      </div>
+      <div class="insta">
+        {Array.from({ length: 6 }, () => <div class="ph insta-tile" aria-hidden="true"></div>)}
+      </div>
+      <span class="muted small">[{nl ? "Foto's van klanten die @knoopz.wear taggen" : 'Photos from customers tagging @knoopz.wear'}]</span>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .hero { position: relative; min-height: min(680px, 82vh); align-items: flex-end; justify-content: stretch; padding: 0; text-transform: none; letter-spacing: normal; font-size: inherit; color: var(--ink); text-align: left; }
+  .hero-ph { position: absolute; top: 24px; left: var(--gutter); font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ph-ink); }
+  .hero-inner { width: 100%; padding-top: 80px; padding-bottom: 56px; display: flex; flex-direction: column; align-items: flex-start; gap: 22px; }
+  .hero-inner .h1 { max-width: 640px; }
+  .stack { display: flex; flex-direction: column; gap: 32px; }
+  .head-row { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+  .story { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s5); align-items: center; }
+  .story-img { aspect-ratio: 1 / 1; }
+  .story-text { display: flex; flex-direction: column; align-items: flex-start; gap: 22px; max-width: 460px; }
+  .insta { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; }
+  .insta-tile { aspect-ratio: 1 / 1; }
+  .small { font-size: 13px; }
+  @media (max-width: 760px) {
+    .hero { min-height: 560px; }
+    .hero-ph { top: 16px; font-size: 10px; }
+    .hero-inner { padding-bottom: 32px; gap: 16px; }
+    .hero-inner .btn { align-self: stretch; }
+    .story { grid-template-columns: 1fr; gap: 20px; }
+    .insta { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  }
+</style>
