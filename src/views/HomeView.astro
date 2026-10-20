@@ -2,28 +2,31 @@
 import Base from '../layouts/Base.astro';
 import ProductCard from '../components/ProductCard.astro';
 import { t, routes, dropPath, type Lang } from '../i18n/ui';
-import { drops, productsInDrop } from '../data/catalog';
+import { loadCatalog, productsInDrop } from '../data/catalog';
 
 interface Props { lang: Lang }
 const { lang } = Astro.props;
-const drop = drops[0];
-const featured = productsInDrop(drop.id).slice(0, 4);
+const catalog = await loadCatalog();
+const drop = catalog.drops[0];
+const featured = drop ? productsInDrop(catalog, drop.id).slice(0, 4) : catalog.products.slice(0, 4);
+const shopHref = drop ? dropPath(lang, drop.slug) : routes.shop[lang];
+const dropName = drop ? drop.name[lang] : t(lang, 'nav.allProducts');
 const nl = lang === 'nl';
 ---
 <Base lang={lang} alternate={routes.home[lang === 'nl' ? 'en' : 'nl']}>
   <section class="hero ph">
     <span class="hero-ph">[{nl ? 'Campagnebeeld Drop 01, model met pet' : 'Campaign image Drop 01, model wearing cap'}]</span>
     <div class="wrap hero-inner">
-      <span class="eyebrow">{drop.name[lang]} · [{nl ? 'naam drop' : 'drop name'}]</span>
+      <span class="eyebrow">{dropName}</span>
       <h1 class="h1">{nl ? 'Statement pieces met vintage knopen' : 'Statement pieces with vintage buttons'}</h1>
-      <a class="btn btn-primary" href={dropPath(lang, drop.slug)}>{t(lang, 'home.shopDrop')}</a>
+      <a class="btn btn-primary" href={shopHref}>{t(lang, 'home.shopDrop')}</a>
     </div>
   </section>
 
   <section class="section wrap stack">
     <div class="head-row">
-      <h2 class="h2">{drop.name[lang]}</h2>
-      <a class="link-line" href={dropPath(lang, drop.slug)}>{t(lang, 'home.viewAll')}</a>
+      <h2 class="h2">{dropName}</h2>
+      <a class="link-line" href={shopHref}>{t(lang, 'home.viewAll')}</a>
     </div>
     <div class="grid">
       {featured.map((p) => <ProductCard lang={lang} product={p} />)}

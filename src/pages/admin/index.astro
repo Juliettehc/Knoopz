@@ -1,0 +1,41 @@
+---
+// Beheeromgeving KNOOPZ. Alleen voor de oprichters; niet gelinkt vanuit de shop.
+// Toegang wordt afgedwongen door de database (Row Level Security), niet door deze pagina.
+import '../../styles/global.css';
+import '../../styles/admin.css';
+---
+<!doctype html>
+<html lang="nl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Beheer · KNOOPZ</title>
+    <link rel="icon" type="image/png" href="/favicon.png" />
+  </head>
+  <body class="admin">
+    <header class="a-top" data-topbar hidden>
+      <a class="a-brand" href="#/producten"><img src="/knoopz-logo.png" alt="KNOOPZ" width="900" height="169" /><span>Beheer</span></a>
+      <nav class="a-nav" aria-label="Beheer">
+        <a href="#/producten" data-nav="producten">Producten</a>
+        <a href="#/drops" data-nav="drops">Drops</a>
+        <a href="#/instellingen" data-nav="instellingen">Instellingen</a>
+      </nav>
+      <div class="a-actions">
+        <button type="button" class="btn btn-primary a-publish" data-publish>Wijzigingen publiceren</button>
+        <span class="a-user" data-user></span>
+        <button type="button" class="a-link" data-logout>Uitloggen</button>
+      </div>
+    </header>
+    <div class="a-dirty" data-dirty hidden>
+      Je hebt wijzigingen die nog niet op de website staan. Klik op <strong>Wijzigingen publiceren</strong> als je klaar bent.
+    </div>
+    <div class="a-toast" role="status" aria-live="polite" data-toast hidden></div>
+    <main class="a-main" id="app">
+      <p class="muted">Laden…</p>
+    </main>
+    <script>
+      import '../../scripts/admin/app';
+    </script>
+  </body>
+</html>

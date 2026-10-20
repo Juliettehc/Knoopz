@@ -1,20 +1,21 @@
 ---
 import ListingView from '../../views/ListingView.astro';
-import { drops, productsInDrop } from '../../data/catalog';
+import { loadCatalog, productsInDrop } from '../../data/catalog';
 import { t, routes, dropPath } from '../../i18n/ui';
 
-export function getStaticPaths() {
-  return drops.map((drop) => ({ params: { slug: drop.slug }, props: { drop } }));
+export async function getStaticPaths() {
+  const catalog = await loadCatalog();
+  return catalog.drops.map((drop) => ({ params: { slug: drop.slug }, props: { drop, items: productsInDrop(catalog, drop.id) } }));
 }
-const { drop } = Astro.props;
+const { drop, items } = Astro.props;
 const lang = 'nl';
 const other = lang === 'nl' ? 'en' : 'nl';
 ---
 <ListingView
   lang={lang}
   title={drop.name[lang]}
-  intro={drop.intro[lang]}
+  intro={drop.intro[lang] || undefined}
   crumbs={[{ label: t(lang, 'nav.shop'), href: routes.shop[lang] }, { label: drop.name[lang] }]}
-  items={productsInDrop(drop.id)}
+  items={items}
   alternate={dropPath(other, drop.slug)}
 />

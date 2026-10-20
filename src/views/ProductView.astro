@@ -2,74 +2,103 @@
 import Base from '../layouts/Base.astro';
 import ProductCard from '../components/ProductCard.astro';
 import { t, formatPrice, routes, dropPath, productPath, type Lang } from '../i18n/ui';
-import { getDrop, productsInDrop, type Product } from '../data/catalog';
+import { loadCatalog, getDrop, productsInDrop, type Product } from '../data/catalog';
 
 interface Props { lang: Lang; product: Product }
 const { lang, product: p } = Astro.props;
-const drop = getDrop(p.dropId)!;
+const catalog = await loadCatalog();
+const drop = getDrop(catalog, p.dropId);
 const sold = p.status === 'sold';
-const more = productsInDrop(p.dropId).filter((x) => x.id !== p.id && x.status === 'available').slice(0, 4);
+const pool = drop ? productsInDrop(catalog, drop.id) : catalog.products;
+const more = pool.filter((x) => x.id !== p.id && x.status === 'available').slice(0, 4);
 const nl = lang === 'nl';
-const photoLabels = nl ? ['Hoofdfoto', 'Achterkant', 'Detail knoop', 'Op model'] : ['Main photo', 'Back', 'Button detail', 'On model'];
-const photos = photoLabels.slice(0, p.images);
 const other: Lang = nl ? 'en' : 'nl';
+const priceLabel = formatPrice(lang, p.price);
+const soldLabel = t(lang, 'product.soldOut');
+const placeholderLabels = nl ? ['Hoofdfoto', 'Achterkant', 'Detail knoop', 'Op model'] : ['Main photo', 'Back', 'Button detail', 'On model'];
+const hasImages = p.images.length > 0;
+const main = p.images[0];
+const text = (v: string, fallback: string) => (v && v.trim() ? v : fallback);
 ---
 <Base lang={lang} title={p.name[lang]} alternate={productPath(other, p.slug)}>
   <div class="wrap crumbs muted">
     <a href={routes.shop[lang]}>{t(lang, 'nav.shop')}</a>
-    <span aria-hidden="true">/</span>
-    <a href={dropPath(lang, drop.slug)}>{drop.name[lang]}</a>
+    {drop && (
+      <>
+        <span aria-hidden="true">/</span>
+        <a href={dropPath(lang, drop.slug)}>{drop.name[lang]}</a>
+      </>
+    )}
     <span aria-hidden="true">/</span>
     <span aria-current="page">{p.name[lang]}</span>
   </div>
 
-  <section class="wrap product">
+  <section class="wrap product" data-product-id={p.id} data-status={p.status}>
     <div class="gallery" data-gallery aria-label={t(lang, 'product.photos')}>
-      <div class="g-main ph ph-tile" data-main>[{photos[0]}]</div>
-      <div class="g-thumbs">
-        {photos.map((label, i) => (
-          <button type="button" class="g-thumb ph ph-tile" aria-label={label} aria-pressed={i === 0 ? 'true' : 'false'} data-thumb={label}></button>
-        ))}
-      </div>
-      <div class="g-strip" tabindex="0">
-        {photos.map((label) => <div class="g-slide ph ph-tile">[{label}]</div>)}
-      </div>
-      <div class="g-dots" aria-hidden="true">
-        {photos.map((_, i) => <span class:list={['dot', { on: i === 0 }]}></span>)}
-      </div>
+      {hasImages ? (
+        <>
+          <div class="g-main ph ph-tile">
+            <img data-main src={main.large} srcset={`${main.small} 800w, ${main.large} 2000w`} sizes="(max-width: 760px) 100vw, 58vw" alt={main.alt[lang]} width="2000" height="2500" fetchpriority="high" />
+          </div>
+          {p.images.length > 1 && (
+            <div class="g-thumbs">
+              {p.images.map((img, i) => (
+                <button type="button" class="g-thumb ph ph-tile" aria-label={img.alt[lang]} aria-pressed={i === 0 ? 'true' : 'false'} data-thumb data-small={img.small} data-large={img.large} data-alt={img.alt[lang]}>
+                  <img src={img.small} alt="" width="800" height="1000" loading="lazy" />
+                </button>
+              ))}
+            </div>
+          )}
+          <div class="g-strip" tabindex="0">
+            {p.images.map((img, i) => (
+              <div class="g-slide ph ph-tile">
+                <img src={img.small} srcset={`${img.small} 800w, ${img.large} 2000w`} sizes="100vw" alt={img.alt[lang]} width="800" height="1000" loading={i === 0 ? 'eager' : 'lazy'} />
+              </div>
+            ))}
+          </div>
+          {p.images.length > 1 && (
+            <div class="g-dots" aria-hidden="true">
+              {p.images.map((_, i) => <span class:list={['dot', { on: i === 0 }]}></span>)}
+            </div>
+          )}
+        </>
+      ) : (
+        <>
+          <div class="g-main ph ph-tile">[{placeholderLabels[0]}]</div>
+          <div class="g-strip"><div class="g-slide ph ph-tile">[{placeholderLabels[0]}]</div></div>
+        </>
+      )}
     </div>
 
     <div class="info">
       <div class="title-block">
-        <span class="eyebrow">{drop.name[lang]}</span>
+        {drop && <span class="eyebrow">{drop.name[lang]}</span>}
         <h1 class="h2">{p.name[lang]}</h1>
-        <span class="price">{sold ? t(lang, 'product.soldOut') : formatPrice(lang, p.price)}</span>
+        <span class="price" data-price data-label-price={priceLabel} data-label-sold={soldLabel}>{sold ? soldLabel : priceLabel}</span>
       </div>
       <div class="facts muted">
-        {!sold && <span>{t(lang, 'product.unique')}</span>}
+        <span data-sold-hide hidden={sold}>{t(lang, 'product.unique')}</span>
         <span>{t(lang, 'product.size')}</span>
         <span>{t(lang, 'product.code')}: {p.code}</span>
       </div>
-      {sold ? (
-        <button type="button" class="btn btn-block" disabled>{t(lang, 'product.soldOut')}</button>
-      ) : (
-        <button type="button" class="btn btn-dark btn-block" data-add={p.id} data-label-add={t(lang, 'product.add')} data-label-in={t(lang, 'product.inCart')}>
-          {t(lang, 'product.add')}
-        </button>
-      )}
+      <button type="button" class="btn btn-dark btn-block" data-sold-hide hidden={sold} data-add={p.id} data-label-add={t(lang, 'product.add')} data-label-in={t(lang, 'product.inCart')}>
+        {t(lang, 'product.add')}
+      </button>
+      <button type="button" class="btn btn-block" disabled data-sold-show hidden={!sold}>{soldLabel}</button>
+      {p.description[lang] && <p class="desc">{p.description[lang]}</p>}
       <span class="muted small">{t(lang, 'product.shippingInfo')}</span>
       <div class="acc">
         <details open>
           <summary>{t(lang, 'product.details')}</summary>
-          <p>[{nl ? 'Materiaal, pasvorm, verzorging.' : 'Material, fit, care.'}]</p>
+          <p>{text(p.details[lang], nl ? '[Materiaal, pasvorm, verzorging.]' : '[Material, fit, care.]')}</p>
         </details>
         <details>
           <summary>{t(lang, 'product.button')}</summary>
-          <p>[{nl ? 'Herkomst en verhaal van de vintage knoop op deze pet.' : 'Origin and story of the vintage button on this cap.'}]</p>
+          <p>{text(p.buttonStory[lang], nl ? '[Herkomst en verhaal van de vintage knoop op deze pet.]' : '[Origin and story of the vintage button on this cap.]')}</p>
         </details>
         <details>
           <summary>{t(lang, 'product.shipping')}</summary>
-          <p>[{nl ? 'Verzendkosten, levertijd en retourbeleid.' : 'Shipping costs, delivery time and returns policy.'}]</p>
+          <p>{nl ? '[Verzendkosten, levertijd en retourbeleid.]' : '[Shipping costs, delivery time and returns policy.]'}</p>
         </details>
       </div>
     </div>
@@ -78,7 +107,7 @@ const other: Lang = nl ? 'en' : 'nl';
   {more.length > 0 && (
     <section class="rule">
       <div class="section wrap stack">
-        <h2 class="h3">{t(lang, 'product.more')} {drop.name[lang]}</h2>
+        <h2 class="h3">{t(lang, 'product.more')} {drop ? drop.name[lang] : 'KNOOPZ'}</h2>
         <div class="grid">{more.map((x) => <ProductCard lang={lang} product={x} />)}</div>
       </div>
     </section>
@@ -90,18 +119,22 @@ const other: Lang = nl ? 'en' : 'nl';
   .crumbs a { text-decoration: none; }
   .crumbs a:hover { text-decoration: underline; }
   .product { display: grid; grid-template-columns: 7fr 5fr; gap: var(--s5); align-items: start; padding-bottom: var(--s6); }
-  .gallery { display: flex; flex-direction: column; gap: 12px; }
-  .g-main { aspect-ratio: 4 / 5; }
+  .gallery { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  .g-main { aspect-ratio: 4 / 5; padding: 0; overflow: hidden; }
+  .g-main img, .g-slide img, .g-thumb img { width: 100%; height: 100%; object-fit: cover; }
   .g-thumbs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
-  .g-thumb { aspect-ratio: 4 / 5; border: 0; padding: 0; }
+  .g-thumb { aspect-ratio: 4 / 5; border: 0; padding: 0; overflow: hidden; }
   .g-thumb[aria-pressed='true'] { outline: 1px solid var(--ink); outline-offset: -1px; }
   .g-strip, .g-dots { display: none; }
   .info { position: sticky; top: calc(var(--header-h) + 24px); display: flex; flex-direction: column; gap: 24px; }
   .title-block { display: flex; flex-direction: column; gap: 10px; }
   .price { font-size: 18px; }
   .facts { display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
+  .desc { margin: 0; font-size: 16px; line-height: 1.7; white-space: pre-line; }
+  .acc p { white-space: pre-line; }
   .small { font-size: 13px; }
   .stack { display: flex; flex-direction: column; gap: 32px; }
+  .product[data-status='sold'] .g-main img { opacity: 0.6; }
   @media (max-width: 760px) {
     .crumbs { display: none; }
     .product { grid-template-columns: 1fr; gap: 28px; padding-left: 0; padding-right: 0; }
@@ -109,7 +142,7 @@ const other: Lang = nl ? 'en' : 'nl';
     .g-main, .g-thumbs { display: none; }
     .g-strip { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; }
     .g-strip::-webkit-scrollbar { display: none; }
-    .g-slide { flex: 0 0 100%; aspect-ratio: 4 / 5; scroll-snap-align: start; }
+    .g-slide { flex: 0 0 100%; aspect-ratio: 4 / 5; scroll-snap-align: start; padding: 0; overflow: hidden; }
     .g-dots { display: flex; justify-content: center; gap: 8px; margin-top: -32px; position: relative; }
     .dot { width: 6px; height: 6px; border-radius: 50%; background: #c9c3ba; }
     .dot.on { background: var(--ink); }
@@ -121,20 +154,28 @@ const other: Lang = nl ? 'en' : 'nl';
 
   // Galerij: miniaturen (desktop) en veegstrook met puntjes (mobiel)
   document.querySelectorAll<HTMLElement>('[data-gallery]').forEach((g) => {
-    const main = g.querySelector<HTMLElement>('[data-main]')!;
+    const main = g.querySelector<HTMLImageElement>('[data-main]');
     const thumbs = g.querySelectorAll<HTMLButtonElement>('[data-thumb]');
     thumbs.forEach((b) =>
       b.addEventListener('click', () => {
         thumbs.forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
-        main.textContent = `[${b.dataset.thumb}]`;
+        if (main) {
+          main.srcset = `${b.dataset.small} 800w, ${b.dataset.large} 2000w`;
+          main.src = b.dataset.large!;
+          main.alt = b.dataset.alt || '';
+        }
       }),
     );
-    const strip = g.querySelector<HTMLElement>('.g-strip')!;
+    const strip = g.querySelector<HTMLElement>('.g-strip');
     const dots = g.querySelectorAll<HTMLElement>('.dot');
-    strip.addEventListener('scroll', () => {
-      const i = Math.round(strip.scrollLeft / strip.clientWidth);
-      dots.forEach((d, k) => d.classList.toggle('on', k === i));
-    }, { passive: true });
+    strip?.addEventListener(
+      'scroll',
+      () => {
+        const i = Math.round(strip.scrollLeft / strip.clientWidth);
+        dots.forEach((d, k) => d.classList.toggle('on', k === i));
+      },
+      { passive: true },
+    );
   });
 
   // In winkelwagen: uniek stuk, dus maar één keer toe te voegen

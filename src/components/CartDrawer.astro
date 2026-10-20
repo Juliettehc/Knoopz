@@ -1,9 +1,10 @@
 ---
 import { t, formatPrice, productPath, type Lang } from '../i18n/ui';
-import { products } from '../data/catalog';
+import { loadCatalog } from '../data/catalog';
 
 interface Props { lang: Lang }
 const { lang } = Astro.props;
+const { products } = await loadCatalog();
 
 // Kleine productlijst voor de winkelwagen in de browser. In fase 4/5 komt dit uit de database.
 const catalog = products.map((p) => ({
@@ -13,9 +14,11 @@ const catalog = products.map((p) => ({
   cents: p.price,
   url: productPath(lang, p.slug),
   status: p.status,
+  img: p.images[0]?.small ?? null,
 }));
 const labels = {
   remove: t(lang, 'cart.remove'),
+  soldOut: t(lang, 'cart.soldOut'),
   unique: t(lang, 'cart.unique'),
   total: t(lang, 'price.total'),
   locale: lang === 'nl' ? 'nl-NL' : 'en-IE',
@@ -80,13 +83,16 @@ const labels = {
   .cart .item-img { width: 88px; height: 110px; flex: none; padding: 0; }
   .cart .item-info { flex: 1 1 auto; display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
   .cart .item-name { text-decoration: none; }
+  .cart .item-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .cart .item-sold { color: var(--accent); }
   .cart .item-remove { margin-top: auto; align-self: flex-start; background: none; border: 0; border-bottom: 1px solid var(--muted); padding: 0; font-size: 12px; color: var(--muted); min-height: 28px; }
 </style>
 
 <script>
   import { getCart, removeFromCart, onCartChange } from '../scripts/cart';
+  import { fetchStatus } from '../scripts/live';
 
-  type Item = { id: string; name: string; price: string; cents: number | null; url: string; status: string };
+  type Item = { id: string; name: string; price: string; cents: number | null; url: string; status: string; img: string | null };
   const root = document.querySelector<HTMLElement>('[data-cart]')!;
   const backdrop = document.querySelector<HTMLElement>('[data-cart-backdrop]')!;
   const data = JSON.parse(root.querySelector('[data-cart-catalog]')!.textContent || '{}');
@@ -105,12 +111,22 @@ const labels = {
       ...ids.map((id) => {
         const p = catalog.get(id)!;
         const li = tpl.content.firstElementChild!.cloneNode(true) as HTMLElement;
-        li.querySelector<HTMLAnchorElement>('.item-img')!.href = p.url;
+        const imgLink = li.querySelector<HTMLAnchorElement>('.item-img')!;
+        imgLink.href = p.url;
+        if (p.img) {
+          const im = document.createElement('img');
+          im.src = p.img;
+          im.alt = '';
+          im.loading = 'lazy';
+          imgLink.append(im);
+        }
         const name = li.querySelector<HTMLAnchorElement>('.item-name')!;
         name.href = p.url;
         name.textContent = p.name;
         li.querySelector('.item-price')!.textContent = p.price;
-        li.querySelector('.item-sub')!.textContent = labels.unique;
+        const sub = li.querySelector<HTMLElement>('.item-sub')!;
+        sub.textContent = p.status === 'sold' ? labels.soldOut : labels.unique;
+        if (p.status === 'sold') sub.classList.add('item-sold');
         const rm = li.querySelector<HTMLButtonElement>('.item-remove')!;
         rm.textContent = labels.remove;
         rm.setAttribute('aria-label', `${labels.remove}: ${p.name}`);
@@ -147,4 +163,18 @@ const labels = {
   document.addEventListener('knoopz:open-cart', () => setOpen(true));
   onCartChange(render);
   render();
+
+  // Live controleren of stukken in de winkelwagen intussen verkocht zijn
+  const checkLive = async () => {
+    const ids = getCart().filter((id) => catalog.has(id));
+    if (ids.length === 0) return;
+    const status = await fetchStatus(ids);
+    status.forEach((s, id) => {
+      const item = catalog.get(id);
+      if (item) item.status = s;
+    });
+    render();
+  };
+  checkLive();
+  document.querySelectorAll('[data-cart-open]').forEach((b) => b.addEventListener('click', checkLive));
 </script>

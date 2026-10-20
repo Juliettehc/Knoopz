@@ -5,14 +5,36 @@ import type { Product } from '../data/catalog';
 interface Props { lang: Lang; product: Product }
 const { lang, product: p } = Astro.props;
 const sold = p.status === 'sold';
+const priceLabel = formatPrice(lang, p.price);
+const soldLabel = t(lang, 'product.soldOut');
+const [first, second] = p.images;
 ---
-<a class="card" href={productPath(lang, p.slug)} data-status={p.status}>
+<a class="card" href={productPath(lang, p.slug)} data-status={p.status} data-product-id={p.id}>
   <div class="card-media ph ph-tile">
-    <span class="ph-label">[{lang === 'nl' ? 'Productfoto' : 'Product photo'}]</span>
-    {sold && <span class="badge">{t(lang, 'product.soldOut')}</span>}
+    {first ? (
+      <>
+        <img
+          class="card-img"
+          src={first.small}
+          srcset={`${first.small} 800w, ${first.large} 2000w`}
+          sizes="(max-width: 760px) 50vw, 25vw"
+          alt={first.alt[lang]}
+          width="800"
+          height="1000"
+          loading="lazy"
+          decoding="async"
+        />
+        {second && (
+          <img class="card-img card-img-2" src={second.small} alt="" width="800" height="1000" loading="lazy" decoding="async" aria-hidden="true" />
+        )}
+      </>
+    ) : (
+      <span class="ph-label">[{lang === 'nl' ? 'Productfoto' : 'Product photo'}]</span>
+    )}
+    <span class="badge" data-sold-show hidden={!sold}>{soldLabel}</span>
   </div>
   <div class="card-meta">
     <span class="card-name">{p.name[lang]}</span>
-    <span class="muted">{sold ? t(lang, 'product.soldOut') : formatPrice(lang, p.price)}</span>
+    <span class="muted" data-price data-label-price={priceLabel} data-label-sold={soldLabel}>{sold ? soldLabel : priceLabel}</span>
   </div>
 </a>

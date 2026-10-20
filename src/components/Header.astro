@@ -1,9 +1,10 @@
 ---
 import { t, routes, dropPath, type Lang } from '../i18n/ui';
-import { drops } from '../data/catalog';
+import { loadCatalog } from '../data/catalog';
 
 interface Props { lang: Lang; alternate: string }
 const { lang, alternate } = Astro.props;
+const { drops } = await loadCatalog();
 const nlHref = lang === 'nl' ? Astro.url.pathname : alternate;
 const enHref = lang === 'en' ? Astro.url.pathname : alternate;
 ---

@@ -1,9 +1,10 @@
 ---
 import ListingView from '../../../views/ListingView.astro';
-import { products } from '../../../data/catalog';
+import { loadCatalog } from '../../../data/catalog';
 import { t, routes } from '../../../i18n/ui';
 const lang = 'en';
 const other = lang === 'nl' ? 'en' : 'nl';
+const { products } = await loadCatalog();
 ---
 <ListingView
   lang={lang}

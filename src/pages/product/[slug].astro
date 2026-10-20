@@ -1,8 +1,9 @@
 ---
 import ProductView from '../../views/ProductView.astro';
-import { products } from '../../data/catalog';
+import { loadCatalog } from '../../data/catalog';
 
-export function getStaticPaths() {
+export async function getStaticPaths() {
+  const { products } = await loadCatalog();
   return products.map((product) => ({ params: { slug: product.slug }, props: { product } }));
 }
 const { product } = Astro.props;

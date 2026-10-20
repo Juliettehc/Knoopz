@@ -39,5 +39,9 @@ const desc =
     </main>
     <Footer lang={lang} alternate={alternate} />
     <CartDrawer lang={lang} />
+    <script>
+      import { refreshLiveStatus } from '../scripts/live';
+      refreshLiveStatus();
+    </script>
   </body>
 </html>

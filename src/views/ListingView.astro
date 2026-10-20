@@ -58,18 +58,23 @@ const { lang, title, intro, crumbs, items, alternate } = Astro.props;
     const buttons = root.querySelectorAll<HTMLButtonElement>('[data-filter]');
     const cards = root.querySelectorAll<HTMLElement>('[data-grid] .card');
     const count = root.querySelector<HTMLElement>('[data-count]')!;
+    let current = 'all';
+    const apply = () => {
+      let n = 0;
+      cards.forEach((c) => {
+        const show = current === 'all' || c.dataset.status === current;
+        c.hidden = !show;
+        if (show) n++;
+      });
+      count.textContent = String(n);
+    };
     buttons.forEach((btn) =>
       btn.addEventListener('click', () => {
-        const f = btn.dataset.filter;
+        current = btn.dataset.filter || 'all';
         buttons.forEach((b) => b.setAttribute('aria-pressed', String(b === btn)));
-        let n = 0;
-        cards.forEach((c) => {
-          const show = f === 'all' || c.dataset.status === f;
-          c.hidden = !show;
-          if (show) n++;
-        });
-        count.textContent = String(n);
+        apply();
       }),
     );
+    document.addEventListener('knoopz:status-updated', apply);
   });
 </script>
