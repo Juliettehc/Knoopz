@@ -32,6 +32,10 @@ export const addToCart = (id: string) => {
 
 export const removeFromCart = (id: string) => save(getCart().filter((x) => x !== id));
 
+export const removeManyFromCart = (ids: string[]) => save(getCart().filter((x) => !ids.includes(x)));
+
+export const clearCart = () => save([]);
+
 export const onCartChange = (fn: () => void) => {
   document.addEventListener(EVENT, fn);
   window.addEventListener('storage', (e) => e.key === KEY && fn());

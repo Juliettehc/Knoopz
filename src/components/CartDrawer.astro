@@ -1,5 +1,5 @@
 ---
-import { t, formatPrice, productPath, type Lang } from '../i18n/ui';
+import { t, formatPrice, productPath, routes, type Lang } from '../i18n/ui';
 import { loadCatalog } from '../data/catalog';
 
 interface Props { lang: Lang }
@@ -39,8 +39,7 @@ const labels = {
   <div class="cart-foot" data-cart-foot>
     <div class="row"><span>{t(lang, 'cart.subtotal')}</span><span data-cart-subtotal></span></div>
     <span class="muted small">{t(lang, 'cart.shippingNote')}</span>
-    <button type="button" class="btn btn-dark btn-block" aria-disabled="true" aria-describedby="checkout-note">{t(lang, 'cart.checkout')}</button>
-    <span class="muted small center" id="checkout-note">{t(lang, 'cart.checkoutSoon')}</span>
+    <a class="btn btn-dark btn-block" href={routes.checkout[lang]} data-cart-checkout>{t(lang, 'cart.checkout')}</a>
     <button type="button" class="link-line center" data-cart-close>{t(lang, 'cart.continue')}</button>
     <span class="muted small center">{t(lang, 'footer.payment')}</span>
   </div>

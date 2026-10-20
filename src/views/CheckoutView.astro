@@ -1,0 +1,136 @@
+---
+import Base from '../layouts/Base.astro';
+import { t, ui, routes, type Lang } from '../i18n/ui';
+
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const other: Lang = lang === 'nl' ? 'en' : 'nl';
+const L = Object.fromEntries(Object.entries(ui[lang]).filter(([k]) => k.startsWith('checkout.') || k.startsWith('err.')));
+---
+<Base lang={lang} title={t(lang, 'checkout.title')} alternate={routes.checkout[other]}>
+  <section class="wrap section co" data-checkout data-lang={lang}>
+    <h1 class="h2">{t(lang, 'checkout.title')}</h1>
+
+    <div class="co-empty" data-empty hidden>
+      <p class="lead">{t(lang, 'checkout.empty')}</p>
+      <a class="btn btn-dark" href={routes.shop[lang]}>{t(lang, 'checkout.toShop')}</a>
+    </div>
+
+    <div class="co-grid" data-main>
+      <form class="co-form" data-form novalidate>
+        <p class="co-alert" role="alert" data-alert hidden></p>
+
+        <fieldset>
+          <legend class="label">{t(lang, 'checkout.contact')}</legend>
+          <label class="f"><span>{t(lang, 'checkout.email')}</span><input name="email" type="email" autocomplete="email" required maxlength="200" /></label>
+        </fieldset>
+
+        <fieldset>
+          <legend class="label">{t(lang, 'checkout.delivery')}</legend>
+          <div class="f-row">
+            <label class="f"><span>{t(lang, 'checkout.firstName')}</span><input name="first_name" autocomplete="given-name" required maxlength="100" /></label>
+            <label class="f"><span>{t(lang, 'checkout.lastName')}</span><input name="last_name" autocomplete="family-name" required maxlength="100" /></label>
+          </div>
+          <label class="f"><span>{t(lang, 'checkout.street')}</span><input name="street" autocomplete="street-address" required maxlength="200" /></label>
+          <div class="f-row">
+            <label class="f"><span>{t(lang, 'checkout.postal')}</span><input name="postal_code" autocomplete="postal-code" required maxlength="10" /></label>
+            <label class="f"><span>{t(lang, 'checkout.city')}</span><input name="city" autocomplete="address-level2" required maxlength="100" /></label>
+          </div>
+          <label class="f"><span>{t(lang, 'checkout.country')}</span>
+            <select name="country" autocomplete="country" data-country>
+              <option value="NL">{t(lang, 'checkout.NL')}</option>
+              <option value="BE">{t(lang, 'checkout.BE')}</option>
+            </select>
+          </label>
+        </fieldset>
+
+        <fieldset>
+          <legend class="label">{t(lang, 'checkout.discount')}</legend>
+          <div class="f-code">
+            <label class="f"><span class="sr">{t(lang, 'checkout.discount')}</span><input name="code" autocomplete="off" autocapitalize="characters" maxlength="30" data-code /></label>
+            <button type="button" class="btn btn-outline" data-apply>{t(lang, 'checkout.apply')}</button>
+          </div>
+          <p class="co-msg" data-code-msg hidden></p>
+        </fieldset>
+
+        <label class="co-terms">
+          <input type="checkbox" name="terms" required />
+          <span>{t(lang, 'checkout.termsBefore')} <a href={routes.terms[lang]} target="_blank">{t(lang, 'checkout.termsLink')}</a> {t(lang, 'checkout.termsMiddle')} <a href={routes.privacy[lang]} target="_blank">{t(lang, 'checkout.privacyLink')}</a>{t(lang, 'checkout.termsAfter')}</span>
+        </label>
+
+        <button type="submit" class="btn btn-primary btn-block" data-pay>{t(lang, 'checkout.pay')}</button>
+        <p class="muted small">{t(lang, 'checkout.secure')}</p>
+      </form>
+
+      <aside class="co-sum" aria-labelledby="sum-title">
+        <h2 class="label" id="sum-title">{t(lang, 'checkout.summary')}</h2>
+        <p class="muted small" data-loading>{t(lang, 'checkout.loading')}</p>
+        <ul class="co-items" data-items></ul>
+        <dl class="co-totals" data-totals hidden>
+          <div><dt>{t(lang, 'cart.subtotal')}</dt><dd data-sub></dd></div>
+          <div data-disc-row hidden><dt>{t(lang, 'checkout.discountRow')} <span data-disc-code></span></dt><dd data-disc></dd></div>
+          <div><dt>{t(lang, 'checkout.shipping')}</dt><dd data-ship></dd></div>
+          <div class="co-total"><dt>{t(lang, 'checkout.total')}</dt><dd data-total></dd></div>
+        </dl>
+        <p class="muted small" data-vat></p>
+        <p class="muted small">{t(lang, 'checkout.reserved')}</p>
+      </aside>
+    </div>
+    <script type="application/json" data-labels set:html={JSON.stringify({ ...L, thanks: routes.thanks[lang], shop: routes.shop[lang] })}></script>
+  </section>
+</Base>
+
+<style>
+  .co { display: flex; flex-direction: column; gap: 32px; }
+  .co-empty { display: flex; flex-direction: column; align-items: flex-start; gap: 24px; min-height: 40vh; }
+  .co-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 420px); gap: 64px; align-items: start; }
+  .co-form { display: flex; flex-direction: column; gap: 28px; max-width: 640px; }
+  fieldset { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+  legend { padding: 0; margin-bottom: 14px; }
+  .f { display: flex; flex-direction: column; gap: 6px; font-size: 13px; flex: 1 1 0; min-width: 0; }
+  .f input, .f select {
+    font: inherit; font-size: 16px; min-height: 50px; padding: 0 14px; border: 1px solid #cfc8bc; background: var(--white);
+    color: var(--ink); border-radius: 0; width: 100%;
+  }
+  .f input:focus, .f select:focus { outline: 2px solid var(--ink); outline-offset: 0; border-color: var(--ink); }
+  .f input[aria-invalid='true'] { border-color: var(--accent); }
+  .f-row { display: flex; gap: 14px; }
+  .f-code { display: flex; gap: 10px; align-items: flex-end; }
+  .f-code .btn { min-height: 50px; padding: 0 22px; flex: none; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .co-msg { margin: 0; font-size: 14px; }
+  .co-msg.ok { color: var(--ink); }
+  .co-msg.bad { color: var(--accent); }
+  .co-alert { margin: 0; padding: 14px 16px; border: 1px solid var(--accent); color: var(--accent); background: var(--white); font-size: 14px; }
+  .co-terms { display: flex; gap: 12px; align-items: flex-start; font-size: 14px; line-height: 1.5; }
+  .co-terms input { width: 20px; height: 20px; margin: 1px 0 0; flex: none; accent-color: var(--ink); }
+  .small { font-size: 13px; margin: 0; }
+  .co-sum { position: sticky; top: calc(var(--header-h) + 24px); background: var(--white); border: 1px solid var(--line); padding: 28px; display: flex; flex-direction: column; gap: 16px; }
+  .co-sum h2 { margin: 0; }
+  .co-items { list-style: none; margin: 0; padding: 0; }
+  .co-totals { margin: 0; display: flex; flex-direction: column; gap: 8px; font-size: 15px; border-top: 1px solid var(--line); padding-top: 16px; }
+  .co-totals div { display: flex; justify-content: space-between; gap: 12px; }
+  .co-totals dt, .co-totals dd { margin: 0; }
+  .co-total { font-weight: 500; font-size: 17px; border-top: 1px solid var(--line); padding-top: 12px; margin-top: 4px; }
+  @media (max-width: 900px) {
+    .co-grid { grid-template-columns: 1fr; gap: 32px; }
+    .co-sum { position: static; order: -1; padding: 20px; }
+  }
+  @media (max-width: 480px) {
+    .f-row { flex-direction: column; }
+  }
+</style>
+
+<style is:global>
+  .co-items li { display: flex; gap: 14px; padding: 12px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+  .co-items li:last-child { border-bottom: 0; }
+  .co-items .ci-img { width: 64px; height: 80px; flex: none; background: var(--surface); object-fit: cover; }
+  .co-items .ci-info { flex: 1 1 auto; display: flex; flex-direction: column; gap: 2px; }
+  .co-items .ci-sub { color: var(--muted); font-size: 12px; }
+  .co-items .ci-price { white-space: nowrap; }
+</style>
+
+<script>
+  import { initCheckout } from '../scripts/checkout';
+  initCheckout();
+</script>

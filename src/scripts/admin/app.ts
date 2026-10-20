@@ -1,4 +1,4 @@
-// KNOOPZ beheer: inloggen, producten, foto's, drops, instellingen en publiceren.
+// KNOOPZ beheer: inloggen, producten, foto's, drops, bestellingen, kortingscodes, instellingen en publiceren.
 // Werkt rechtstreeks met Supabase. Wat wel en niet mag, bepaalt de database (Row Level Security).
 
 import { createClient, type Session } from '@supabase/supabase-js';
@@ -128,11 +128,15 @@ async function route() {
   const [, section, id] = (location.hash || '#/producten').split('/');
   document.querySelectorAll<HTMLAnchorElement>('[data-nav]').forEach((a) => {
     a.toggleAttribute('aria-current', false);
-    if (a.dataset.nav === (section === 'product' ? 'producten' : section)) a.setAttribute('aria-current', 'page');
+    const navKey = section === 'product' ? 'producten' : section === 'bestelling' ? 'bestellingen' : section;
+    if (a.dataset.nav === navKey) a.setAttribute('aria-current', 'page');
   });
 
   if (section === 'product') return viewProduct(id === 'nieuw' ? null : id);
   if (section === 'drops') return viewDrops();
+  if (section === 'bestellingen') return viewOrders();
+  if (section === 'bestelling' && id) return viewOrder(id);
+  if (section === 'kortingscodes') return viewCodes();
   if (section === 'instellingen') return viewSettings();
   return viewProducts();
 }
@@ -289,7 +293,7 @@ async function viewProducts() {
     <p class="a-note" data-count></p>
     <div class="a-scroll">
       <table class="a-table">
-        <thead><tr><th>Foto</th><th>Code</th><th>Naam</th><th class="hide-sm">Drop</th><th>Prijs</th><th>Status</th></tr></thead>
+        <thead><tr><th class="hide-xs">Foto</th><th>Code</th><th>Naam</th><th class="hide-sm">Drop</th><th>Prijs</th><th>Status</th></tr></thead>
         <tbody data-rows></tbody>
       </table>
     </div>`;
@@ -312,7 +316,7 @@ async function viewProducts() {
       ? list
           .map(
             (r) => `<tr>
-          <td>${r.img ? `<img class="a-thumb" src="${esc(r.img)}" alt="" loading="lazy" />` : '<span class="a-thumb"></span>'}</td>
+          <td class="hide-xs">${r.img ? `<img class="a-thumb" src="${esc(r.img)}" alt="" loading="lazy" />` : '<span class="a-thumb"></span>'}</td>
           <td>${esc(r.code)}</td>
           <td><a href="#/product/${esc(r.id)}">${esc(r.name_nl)}</a></td>
           <td class="hide-sm">${esc(r.drop)}</td>
@@ -674,10 +678,17 @@ async function viewSettings() {
     <h2>Verzending</h2>
     <form class="a-form a-card" data-ship novalidate>
       <div class="a-row">
-        <label class="a-field"><span>Verzendkosten (€)</span><input name="ship" inputmode="decimal" placeholder="bijv. 3,95" value="${esc(centsToInput(data.shipping_cents))}" /></label>
-        <label class="a-field"><span>Gratis verzending vanaf (€)</span><input name="free" inputmode="decimal" placeholder="leeg = nooit gratis" value="${esc(centsToInput(data.free_shipping_from_cents))}" /></label>
+        <label class="a-field"><span>Verzendkosten Nederland (€)</span><input name="ship" inputmode="decimal" placeholder="bijv. 4,95" value="${esc(centsToInput(data.shipping_cents))}" /></label>
+        <label class="a-field"><span>Verzendkosten België (€)</span><input name="ship_be" inputmode="decimal" placeholder="leeg = zelfde als Nederland" value="${esc(centsToInput(data.shipping_be_cents))}" /></label>
       </div>
-      <p class="a-note">Deze bedragen worden gebruikt bij het afrekenen (fase 5). Vul ze in vóór de lancering.</p>
+      <div class="a-row">
+        <label class="a-field"><span>Gratis verzending vanaf (€)</span><input name="free" inputmode="decimal" placeholder="leeg = nooit gratis" value="${esc(centsToInput(data.free_shipping_from_cents))}" /><small>Geldt voor het bedrag na korting</small></label>
+        <label class="a-field"><span>Btw</span><select name="vat">
+          <option value="incl21" ${data.vat_mode !== 'kor' ? 'selected' : ''}>Prijzen zijn inclusief 21% btw</option>
+          <option value="kor" ${data.vat_mode === 'kor' ? 'selected' : ''}>KOR: geen btw (kleineondernemersregeling)</option></select>
+          <small>Bepaalt alleen wat er op de bevestiging staat; de prijzen zelf veranderen niet.</small></label>
+      </div>
+      <p class="a-note">Zolang de verzendkosten voor Nederland leeg zijn, kunnen klanten nog niet afrekenen. Vul 0 in voor gratis verzending.</p>
       <div class="a-buttons"><button class="btn btn-dark" type="submit">Opslaan</button></div>
     </form>
     <h2>Mijn wachtwoord</h2>
@@ -696,16 +707,295 @@ async function viewSettings() {
     try {
       const { error } = await sb
         .from('settings')
-        .update({ shipping_cents: parseEuro(val(ship, 'ship')), free_shipping_from_cents: parseEuro(val(ship, 'free')) })
+        .update({
+          shipping_cents: parseEuro(val(ship, 'ship')),
+          shipping_be_cents: parseEuro(val(ship, 'ship_be')),
+          free_shipping_from_cents: parseEuro(val(ship, 'free')),
+          vat_mode: val(ship, 'vat') === 'kor' ? 'kor' : 'incl21',
+        })
         .eq('id', 1);
       if (error) throw error;
-      setDirty(true);
-      toast('Verzendinstellingen opgeslagen.');
+      toast('Opgeslagen. Dit geldt direct bij het afrekenen.');
     } catch (e) {
       fail(e, 'Opslaan');
     }
   });
   bindPasswordForm(app.querySelector<HTMLFormElement>('[data-pw]')!, () => {});
+}
+
+// ---------- bestellingen ----------
+const STATUS: Record<string, { label: string; cls: string }> = {
+  paid: { label: 'Betaald · te verzenden', cls: 'todo' },
+  shipped: { label: 'Verzonden', cls: '' },
+  pending: { label: 'Wacht op betaling', cls: 'hidden' },
+  cancelled: { label: 'Geannuleerd', cls: 'hidden' },
+  expired: { label: 'Verlopen', cls: 'hidden' },
+  failed: { label: 'Mislukt', cls: 'hidden' },
+};
+const statusPill = (s: string) => `<span class="a-pill ${STATUS[s]?.cls ?? ''}">${esc(STATUS[s]?.label ?? s)}</span>`;
+const dateTime = (iso: string | null) =>
+  iso ? new Intl.DateTimeFormat('nl-NL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(iso)) : '—';
+
+async function viewOrders() {
+  app.innerHTML = '<p class="muted">Bestellingen laden…</p>';
+  const { data, error } = await sb
+    .from('orders')
+    .select('id,number,status,first_name,last_name,email,total_cents,created_at,paid_at,needs_attention,country')
+    .order('created_at', { ascending: false })
+    .limit(500);
+  if (error) return fail(error, 'Bestellingen laden');
+  const rows = data as any[];
+  const counts = { todo: rows.filter((r) => r.status === 'paid').length };
+
+  app.innerHTML = `
+    <h1>Bestellingen</h1>
+    <div class="a-toolbar">
+      <input class="a-search" type="search" placeholder="Zoek op nummer, naam of e-mail" aria-label="Zoek bestellingen" data-q />
+      <div class="a-filters" role="group" aria-label="Filter">
+        <button class="filter" aria-pressed="true" data-f="todo">Te verzenden (${counts.todo})</button>
+        <button class="filter" aria-pressed="false" data-f="shipped">Verzonden</button>
+        <button class="filter" aria-pressed="false" data-f="paidall">Alle betaalde</button>
+        <button class="filter" aria-pressed="false" data-f="open">Niet betaald</button>
+      </div>
+    </div>
+    <p class="a-note" data-count></p>
+    <div class="a-scroll">
+      <table class="a-table">
+        <thead><tr><th>Nummer</th><th class="hide-sm">Datum</th><th>Klant</th><th>Totaal</th><th>Status</th></tr></thead>
+        <tbody data-rows></tbody>
+      </table>
+    </div>
+    <p class="a-note">Niet-betaalde bestellingen zijn klanten die zijn gaan afrekenen maar (nog) niet betaald hebben. Die stukken zijn na 15 minuten automatisch weer te koop.</p>`;
+
+  const tbody = app.querySelector<HTMLElement>('[data-rows]')!;
+  const q = app.querySelector<HTMLInputElement>('[data-q]')!;
+  let filter = 'todo';
+  const render = () => {
+    const term = q.value.trim().toLowerCase();
+    const list = rows.filter((r) => {
+      if (term && !`${r.number} ${r.first_name} ${r.last_name} ${r.email}`.toLowerCase().includes(term)) return false;
+      if (filter === 'todo') return r.status === 'paid';
+      if (filter === 'shipped') return r.status === 'shipped';
+      if (filter === 'paidall') return r.status === 'paid' || r.status === 'shipped';
+      return !['paid', 'shipped'].includes(r.status);
+    });
+    app.querySelector('[data-count]')!.textContent = `${list.length} bestelling${list.length === 1 ? '' : 'en'}`;
+    tbody.innerHTML = list.length
+      ? list
+          .map(
+            (r) => `<tr>
+          <td><a href="#/bestelling/${esc(r.id)}">${esc(r.number)}</a>${r.needs_attention ? ' <span class="a-pill sold" title="Actie nodig">!</span>' : ''}</td>
+          <td class="hide-sm">${esc(dateTime(r.paid_at ?? r.created_at))}</td>
+          <td>${esc(r.first_name)} ${esc(r.last_name)}</td>
+          <td>${esc(euro(r.total_cents))}</td>
+          <td>${statusPill(r.status)}</td>
+        </tr>`,
+          )
+          .join('')
+      : '<tr><td colspan="5" class="muted">Geen bestellingen.</td></tr>';
+  };
+  q.addEventListener('input', render);
+  app.querySelectorAll<HTMLButtonElement>('[data-f]').forEach((b) =>
+    b.addEventListener('click', () => {
+      filter = b.dataset.f!;
+      app.querySelectorAll('[data-f]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+      render();
+    }),
+  );
+  render();
+}
+
+async function viewOrder(id: string) {
+  app.innerHTML = '<p class="muted">Laden…</p>';
+  const { data: o, error } = await sb.from('orders').select('*,order_items(*)').eq('id', id).single();
+  if (error) return fail(error, 'Bestelling laden');
+  const countries: Record<string, string> = { NL: 'Nederland', BE: 'België' };
+  const addressText = `${o.first_name} ${o.last_name}\n${o.street}\n${o.postal_code} ${o.city}\n${countries[o.country] ?? o.country}`;
+  const canShip = o.status === 'paid' || o.status === 'shipped';
+
+  app.innerHTML = `
+    <p><a href="#/bestellingen">← Terug naar bestellingen</a></p>
+    <h1>${esc(o.number)} ${statusPill(o.status)}</h1>
+    ${o.needs_attention ? `<div class="a-attention"><p>${esc(o.needs_attention)}</p><button class="btn btn-outline" data-resolve>Opgelost</button></div>` : ''}
+    <div class="a-row">
+      <div class="a-card">
+        <h2>Klant en bezorgadres</h2>
+        <p class="a-address">${esc(addressText).replace(/\n/g, '<br>')}</p>
+        <p><a href="mailto:${esc(o.email)}">${esc(o.email)}</a></p>
+        <div class="a-buttons"><button class="btn btn-outline" type="button" data-copy>Adres kopiëren</button></div>
+      </div>
+      <div class="a-card">
+        <h2>Betaling</h2>
+        <dl class="a-dl">
+          <div><dt>Besteld</dt><dd>${esc(dateTime(o.created_at))}</dd></div>
+          <div><dt>Betaald</dt><dd>${esc(dateTime(o.paid_at))}</dd></div>
+          <div><dt>Methode</dt><dd>${esc(o.payment_method ?? '—')}</dd></div>
+          <div><dt>Mollie-id</dt><dd>${esc(o.mollie_payment_id ?? '—')}</dd></div>
+          <div><dt>Verzonden</dt><dd>${esc(dateTime(o.shipped_at))}</dd></div>
+          <div><dt>Taal klant</dt><dd>${o.lang === 'en' ? 'Engels' : 'Nederlands'}</dd></div>
+        </dl>
+      </div>
+    </div>
+    <h2>Artikelen</h2>
+    <div class="a-scroll"><table class="a-table">
+      <thead><tr><th>Code</th><th>Naam</th><th>Prijs</th></tr></thead>
+      <tbody>
+        ${(o.order_items as any[]).map((i) => `<tr><td>${esc(i.code)}</td><td>${i.product_id ? `<a href="#/product/${esc(i.product_id)}">${esc(i.name)}</a>` : esc(i.name)}</td><td>${esc(euro(i.price_cents))}</td></tr>`).join('')}
+        <tr><td></td><td>Subtotaal</td><td>${esc(euro(o.subtotal_cents))}</td></tr>
+        ${o.discount_cents ? `<tr><td></td><td>Korting${o.discount_code ? ` (${esc(o.discount_code)})` : ''}</td><td>− ${esc(euro(o.discount_cents))}</td></tr>` : ''}
+        <tr><td></td><td>Verzending (${esc(countries[o.country] ?? o.country)})</td><td>${esc(euro(o.shipping_cents))}</td></tr>
+        <tr><td></td><td><strong>Totaal</strong></td><td><strong>${esc(euro(o.total_cents))}</strong></td></tr>
+      </tbody>
+    </table></div>
+    <p class="a-note">${o.vat_mode === 'kor' ? 'KOR: geen btw berekend.' : `Waarvan btw (21%): ${esc(euro(o.vat_cents))}`}</p>
+    ${
+      canShip
+        ? `<h2>Verzending</h2>
+    <form class="a-form a-card" data-ship novalidate>
+      <label class="a-field"><span>Track &amp; trace-link (optioneel)</span><input name="tracking" type="url" placeholder="https://..." value="${esc(o.tracking_url)}" /></label>
+      <label class="a-check"><input type="checkbox" name="notify" checked /> Stuur de klant een e-mail dat het pakket onderweg is</label>
+      <div class="a-buttons"><button class="btn btn-dark" type="submit">${o.status === 'shipped' ? 'Verzendgegevens bijwerken' : 'Markeer als verzonden'}</button></div>
+    </form>`
+        : ''
+    }`;
+
+  app.querySelector('[data-copy]')?.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(addressText);
+      toast('Adres gekopieerd.');
+    } catch {
+      toast('Kopiëren lukt niet in deze browser.', true);
+    }
+  });
+  app.querySelector('[data-resolve]')?.addEventListener('click', async () => {
+    const { error } = await sb.from('orders').update({ needs_attention: null }).eq('id', id);
+    if (error) return fail(error, 'Opslaan');
+    viewOrder(id);
+  });
+  const shipForm = app.querySelector<HTMLFormElement>('[data-ship]');
+  shipForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = shipForm.querySelector<HTMLButtonElement>('button[type=submit]')!;
+    btn.disabled = true;
+    try {
+      const { data } = await sb.auth.getSession();
+      const res = await fetch('/api/admin/ship', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${data.session?.access_token ?? ''}` },
+        body: JSON.stringify({ order_id: id, tracking: val(shipForm, 'tracking'), notify: checked(shipForm, 'notify') }),
+      });
+      const r = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(r.error === 'forbidden' ? 'geen toegang' : r.error || `fout ${res.status}`);
+      toast(r.mailed ? 'Verzonden, en de klant is gemaild.' : r.mailEnabled === false ? 'Op verzonden gezet. (E-mails zijn nog niet ingesteld.)' : 'Op verzonden gezet.');
+      viewOrder(id);
+    } catch (err) {
+      fail(err, 'Verzenden');
+      btn.disabled = false;
+    }
+  });
+}
+
+// ---------- kortingscodes ----------
+async function viewCodes() {
+  app.innerHTML = '<p class="muted">Laden…</p>';
+  const { data, error } = await sb.from('discount_codes').select('*').order('created_at', { ascending: false });
+  if (error) return fail(error, 'Kortingscodes laden');
+  const rows = data as any[];
+  const amount = (r: any) => (r.kind === 'percent' ? `${r.value}%` : euro(r.value));
+  const dateOnly = (iso: string | null) => (iso ? new Intl.DateTimeFormat('nl-NL', { dateStyle: 'medium' }).format(new Date(iso)) : '—');
+
+  app.innerHTML = `
+    <h1>Kortingscodes</h1>
+    <div class="a-scroll"><table class="a-table">
+      <thead><tr><th>Code</th><th>Korting</th><th>Gebruikt</th><th class="hide-sm">Geldig t/m</th><th>Status</th><th></th></tr></thead>
+      <tbody>${
+        rows.length
+          ? rows
+              .map(
+                (r) => `<tr data-id="${esc(r.id)}">
+        <td><strong>${esc(r.code)}</strong>${r.note ? `<br><small class="muted">${esc(r.note)}</small>` : ''}</td>
+        <td>${esc(amount(r))}${r.min_order_cents ? `<br><small class="muted">vanaf ${esc(euro(r.min_order_cents))}</small>` : ''}</td>
+        <td>${r.used_count}${r.max_uses ? ` / ${r.max_uses}` : ''}</td>
+        <td class="hide-sm">${esc(dateOnly(r.ends_at))}</td>
+        <td>${r.active ? '<span class="a-pill">Actief</span>' : '<span class="a-pill hidden">Uit</span>'}</td>
+        <td class="a-cell-actions"><button class="a-link" data-toggle>${r.active ? 'Uitzetten' : 'Aanzetten'}</button>${r.used_count === 0 ? ' <button class="a-link" data-del>Verwijderen</button>' : ''}</td>
+      </tr>`,
+              )
+              .join('')
+          : '<tr><td colspan="6" class="muted">Nog geen kortingscodes.</td></tr>'
+      }</tbody>
+    </table></div>
+    <h2>Nieuwe kortingscode</h2>
+    <form class="a-form a-card" data-new novalidate>
+      <div class="a-row">
+        <label class="a-field"><span>Code *</span><input name="code" required placeholder="bijv. LAUNCH10" autocapitalize="characters" /><small>Hoofdletters, cijfers, - of _ (3 tot 30 tekens)</small></label>
+        <label class="a-field"><span>Omschrijving (alleen voor jullie)</span><input name="note" placeholder="bijv. vrienden en familie" /></label>
+      </div>
+      <div class="a-row a-row-3">
+        <label class="a-field"><span>Soort</span><select name="kind"><option value="percent">Percentage (%)</option><option value="amount">Vast bedrag (€)</option></select></label>
+        <label class="a-field"><span>Waarde *</span><input name="value" inputmode="decimal" required placeholder="bijv. 10" /></label>
+        <label class="a-field"><span>Minimaal bestelbedrag (€)</span><input name="min" inputmode="decimal" placeholder="leeg = geen minimum" /></label>
+      </div>
+      <div class="a-row">
+        <label class="a-field"><span>Maximaal aantal keer te gebruiken</span><input name="max" type="number" min="1" placeholder="leeg = onbeperkt" /><small>Totaal over alle klanten</small></label>
+        <label class="a-field"><span>Geldig tot en met</span><input name="ends" type="date" /><small>Leeg = geen einddatum</small></label>
+      </div>
+      <p class="a-error" data-err hidden></p>
+      <div class="a-buttons"><button class="btn btn-dark" type="submit">Kortingscode aanmaken</button></div>
+    </form>
+    <p class="a-note">Kortingscodes werken direct, je hoeft niet te publiceren.</p>`;
+
+  app.querySelectorAll<HTMLElement>('tr[data-id]').forEach((tr) => {
+    const r = rows.find((x) => x.id === tr.dataset.id);
+    tr.querySelector('[data-toggle]')?.addEventListener('click', async () => {
+      const { error } = await sb.from('discount_codes').update({ active: !r.active }).eq('id', r.id);
+      if (error) return fail(error, 'Opslaan');
+      viewCodes();
+    });
+    tr.querySelector('[data-del]')?.addEventListener('click', async () => {
+      if (!confirm(`Kortingscode ${r.code} verwijderen?`)) return;
+      const { error } = await sb.from('discount_codes').delete().eq('id', r.id);
+      if (error) return fail(error, 'Verwijderen');
+      viewCodes();
+    });
+  });
+
+  const form = app.querySelector<HTMLFormElement>('[data-new]')!;
+  const err = form.querySelector<HTMLElement>('[data-err]')!;
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    err.hidden = true;
+    try {
+      const code = val(form, 'code').toUpperCase().replace(/\s+/g, '');
+      if (!/^[A-Z0-9_-]{3,30}$/.test(code)) throw new Error('Gebruik 3 tot 30 hoofdletters, cijfers, - of _.');
+      const kind = val(form, 'kind') === 'amount' ? 'amount' : 'percent';
+      let value: number;
+      if (kind === 'percent') {
+        value = parseInt(val(form, 'value'), 10);
+        if (!(value >= 1 && value <= 100)) throw new Error('Kies een percentage tussen 1 en 100.');
+      } else {
+        value = parseEuro(val(form, 'value')) ?? 0;
+        if (value <= 0) throw new Error('Vul een bedrag in.');
+      }
+      const max = parseInt(val(form, 'max'), 10);
+      const ends = val(form, 'ends');
+      const { error } = await sb.from('discount_codes').insert({
+        code,
+        kind,
+        value,
+        note: orNull(val(form, 'note')),
+        min_order_cents: parseEuro(val(form, 'min')),
+        max_uses: max > 0 ? max : null,
+        ends_at: ends ? new Date(`${ends}T23:59:59`).toISOString() : null,
+      });
+      if (error) throw error.code === '23505' ? new Error('Deze code bestaat al.') : error;
+      toast(`Kortingscode ${code} aangemaakt.`);
+      viewCodes();
+    } catch (e: any) {
+      err.textContent = `Aanmaken mislukt: ${e?.message || e}`;
+      err.hidden = false;
+    }
+  });
 }
 
 // ---------- start ----------

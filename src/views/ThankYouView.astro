@@ -1,0 +1,51 @@
+---
+import Base from '../layouts/Base.astro';
+import { t, ui, routes, type Lang } from '../i18n/ui';
+
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const other: Lang = lang === 'nl' ? 'en' : 'nl';
+const L = Object.fromEntries(Object.entries(ui[lang]).filter(([k]) => k.startsWith('thanks.') || k.startsWith('checkout.')));
+---
+<Base lang={lang} title={t(lang, 'thanks.title')} alternate={routes.thanks[other]}>
+  <section class="wrap section ty" data-thanks data-lang={lang}>
+    <h1 class="h2" data-title>{t(lang, 'thanks.title')}</h1>
+    <p class="lead" data-msg>{t(lang, 'thanks.pending')}</p>
+    <p class="ty-nr" data-nr hidden></p>
+    <div class="ty-box" data-box hidden>
+      <ul class="ty-items" data-items></ul>
+      <dl class="ty-totals">
+        <div><dt>{t(lang, 'checkout.shipping')}</dt><dd data-ship></dd></div>
+        <div data-disc-row hidden><dt>{t(lang, 'checkout.discountRow')}</dt><dd data-disc></dd></div>
+        <div class="ty-total"><dt>{t(lang, 'checkout.total')}</dt><dd data-total></dd></div>
+      </dl>
+      <p class="muted small" data-vat></p>
+    </div>
+    <div class="ty-actions">
+      <a class="btn btn-dark" href={routes.checkout[lang]} data-retry hidden>{t(lang, 'thanks.retry')}</a>
+      <a class="link-line" href={routes.shop[lang]}>{t(lang, 'thanks.continue')}</a>
+    </div>
+    <script type="application/json" data-labels set:html={JSON.stringify(L)}></script>
+  </section>
+</Base>
+
+<style>
+  .ty { display: flex; flex-direction: column; gap: 24px; min-height: 55vh; max-width: 760px; }
+  .ty-nr { margin: 0; font-size: 14px; letter-spacing: 0.06em; }
+  .ty-box { background: var(--white); border: 1px solid var(--line); padding: 24px; display: flex; flex-direction: column; gap: 12px; }
+  .ty-items { list-style: none; margin: 0; padding: 0; }
+  .ty-totals { margin: 0; display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--line); padding-top: 12px; }
+  .ty-totals div { display: flex; justify-content: space-between; gap: 12px; }
+  .ty-totals dt, .ty-totals dd { margin: 0; }
+  .ty-total { font-weight: 500; }
+  .ty-actions { display: flex; flex-wrap: wrap; gap: 24px; align-items: center; }
+  .small { font-size: 13px; margin: 0; }
+</style>
+<style is:global>
+  .ty-items li { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; font-size: 15px; }
+</style>
+
+<script>
+  import { initThanks } from '../scripts/thanks';
+  initThanks();
+</script>
