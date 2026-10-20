@@ -94,7 +94,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .card { display: flex; flex-direction: column; gap: 12px; text-decoration: none; }
 .card-media { position: relative; aspect-ratio: 4 / 5; }
 .card[data-status='sold'] .card-media .ph-label,
-.card[data-status='sold'] .card-img { opacity: 0.45; }
+.card[data-status='sold'] .card-img:not(.card-img-2) { opacity: 0.45; }
 .card-media { overflow: hidden; }
 .card-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: opacity 0.3s; }
 .card-img-2 { opacity: 0; }
