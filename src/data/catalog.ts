@@ -35,9 +35,16 @@ export interface Product {
   images: ProductImage[];
 }
 
+export interface SiteImage {
+  url: string;
+  alt: T;
+  link: string | null;
+}
+
 export interface Catalog {
   drops: Drop[];
   products: Product[];
+  site: Record<string, SiteImage>; // homepage-foto's: hero_desktop, hero_mobile, story, insta_1..6
 }
 
 const t = (nl: string | null | undefined, en: string | null | undefined): T => ({ nl: nl ?? '', en: en || nl || '' });
@@ -49,12 +56,17 @@ async function rest<R>(path: string): Promise<R> {
 }
 
 async function fromSupabase(): Promise<Catalog> {
-  const [dropRows, productRows] = await Promise.all([
+  const [dropRows, productRows, siteRows] = await Promise.all([
     rest<any[]>('drops?select=*&published=eq.true&order=sort.asc,created_at.asc'),
     rest<any[]>(
       'products?select=*,product_variants(status,stock),product_images(path_small,path_large,alt_nl,alt_en,sort)&published=eq.true&order=sort.asc,created_at.asc',
     ),
+    // Homepage-foto's zijn optioneel: als de tabel (nog) niet bestaat, bouwt de site gewoon met plaatshouders.
+    rest<any[]>('site_images?select=*').catch(() => [] as any[]),
   ]);
+  const site: Record<string, SiteImage> = Object.fromEntries(
+    siteRows.map((r) => [r.key, { url: publicImageUrl(r.path), alt: t(r.alt_nl, r.alt_en), link: r.link || null }]),
+  );
   const drops: Drop[] = dropRows.map((d) => ({ id: d.id, slug: d.slug, name: t(d.name_nl, d.name_en), intro: t(d.intro_nl, d.intro_en) }));
   const products: Product[] = productRows.map((p) => {
     const variants: { status: string; stock: number }[] = p.product_variants ?? [];
@@ -77,7 +89,7 @@ async function fromSupabase(): Promise<Catalog> {
       images,
     };
   });
-  return { drops, products };
+  return { drops, products, site };
 }
 
 // Voorbeelddata, alleen voor lokaal ontwikkelen zonder database (KNOOPZ_SAMPLE_DATA=1).
@@ -106,7 +118,7 @@ function sample(): Catalog {
       images: [],
     };
   });
-  return { drops: [drop], products };
+  return { drops: [drop], products, site: {} };
 }
 
 let cache: Promise<Catalog> | undefined;

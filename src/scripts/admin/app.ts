@@ -137,6 +137,7 @@ async function route() {
   if (section === 'bestellingen') return viewOrders();
   if (section === 'bestelling' && id) return viewOrder(id);
   if (section === 'kortingscodes') return viewCodes();
+  if (section === 'homepage') return viewHomepage();
   if (section === 'instellingen') return viewSettings();
   return viewProducts();
 }
@@ -892,6 +893,101 @@ async function viewOrder(id: string) {
       fail(err, 'Verzenden');
       btn.disabled = false;
     }
+  });
+}
+
+// ---------- homepage-foto's ----------
+const SITE_SLOTS: { key: string; label: string; hint: string; max: number; ratio: string }[] = [
+  { key: 'hero_desktop', label: 'Grote foto bovenaan · computer', hint: 'Liggend, 3000 × 1688 px (16:9)', max: 2560, ratio: '16 / 9' },
+  { key: 'hero_mobile', label: 'Grote foto bovenaan · telefoon', hint: 'Staand, 2000 × 2500 px (4:5). Leeg = de computerfoto wordt gebruikt', max: 1600, ratio: '4 / 5' },
+  { key: 'story', label: 'Foto bij het verhaal', hint: 'Vierkant, bijv. 2000 × 2000 px (detail van een knoop)', max: 1600, ratio: '1 / 1' },
+  ...Array.from({ length: 6 }, (_, i) => ({ key: `insta_${i + 1}`, label: `Instagram-tegel ${i + 1}`, hint: 'Vierkant, bijv. 1080 × 1080 px', max: 800, ratio: '1 / 1' })),
+];
+
+async function viewHomepage() {
+  app.innerHTML = '<p class="muted">Laden…</p>';
+  const { data, error } = await sb.from('site_images').select('*');
+  if (error) {
+    app.innerHTML = `<h1>Homepage</h1><p class="a-error">De homepage-foto's zijn nog niet ingesteld in de database. Voer eerst het SQL-script <strong>004_homepage_fotos.sql</strong> uit in Supabase.</p>`;
+    return;
+  }
+  const rows = new Map((data as any[]).map((r) => [r.key, r]));
+  const slot = (s: (typeof SITE_SLOTS)[number]) => {
+    const r = rows.get(s.key);
+    const isInsta = s.key.startsWith('insta_');
+    return `
+      <div class="a-card a-slot" data-key="${s.key}">
+        <div class="a-slot-img" style="aspect-ratio:${s.ratio}">${r ? `<img src="${esc(publicImageUrl(r.path))}" alt="" />` : '<span>Nog geen foto</span>'}</div>
+        <div class="a-slot-info">
+          <strong>${esc(s.label)}</strong>
+          <small class="muted">${esc(s.hint)}</small>
+          <div class="a-buttons">
+            <label class="btn btn-outline" style="cursor:pointer">${r ? 'Vervangen' : 'Foto kiezen'}<input type="file" accept="image/jpeg,image/png,image/webp" hidden data-file /></label>
+            ${r ? '<button type="button" class="a-link" data-remove>Verwijderen</button>' : ''}
+          </div>
+          ${
+            r
+              ? `<label class="a-field"><span>Beschrijving (NL)</span><input data-f="alt_nl" value="${esc(r.alt_nl)}" placeholder="Wat staat er op de foto?" /></label>
+          <label class="a-field"><span>Beschrijving (EN)</span><input data-f="alt_en" value="${esc(r.alt_en)}" /></label>
+          ${isInsta ? `<label class="a-field"><span>Link (optioneel)</span><input data-f="link" type="url" value="${esc(r.link)}" placeholder="Link naar de Instagram-post; leeg = @knoopz.wear" /></label>` : ''}`
+              : ''
+          }
+          <p class="a-note" data-progress></p>
+        </div>
+      </div>`;
+  };
+
+  app.innerHTML = `
+    <h1>Homepage</h1>
+    <p class="a-note">Upload hier de foto's voor de homepage. Ze worden automatisch verkleind. Klik daarna op <strong>Wijzigingen publiceren</strong>.</p>
+    <h2>Campagnefoto</h2>
+    <div class="a-slots a-slots-2">${SITE_SLOTS.slice(0, 2).map(slot).join('')}</div>
+    <h2>Verhaal</h2>
+    <div class="a-slots a-slots-2">${slot(SITE_SLOTS[2])}</div>
+    <h2>Instagram-blok</h2>
+    <div class="a-slots a-slots-3">${SITE_SLOTS.slice(3).map(slot).join('')}</div>`;
+
+  app.querySelectorAll<HTMLElement>('.a-slot').forEach((card) => {
+    const key = card.dataset.key!;
+    const s = SITE_SLOTS.find((x) => x.key === key)!;
+    const r = rows.get(key);
+    const progress = card.querySelector<HTMLElement>('[data-progress]')!;
+    card.querySelector<HTMLInputElement>('[data-file]')!.addEventListener('change', async (e) => {
+      const f = (e.target as HTMLInputElement).files?.[0];
+      if (!f) return;
+      progress.textContent = 'Bezig met uploaden…';
+      try {
+        const blob = await resizeImage(f, s.max, 0.86);
+        const path = `site/${key}-${crypto.randomUUID()}.jpg`;
+        const up = await sb.storage.from(IMAGE_BUCKET).upload(path, blob, { contentType: 'image/jpeg', cacheControl: '31536000' });
+        if (up.error) throw up.error;
+        const { error } = await sb.from('site_images').upsert({ key, path, alt_nl: r?.alt_nl ?? null, alt_en: r?.alt_en ?? null, link: r?.link ?? null });
+        if (error) throw error;
+        if (r?.path) await sb.storage.from(IMAGE_BUCKET).remove([r.path]);
+        setDirty(true);
+        toast('Foto opgeslagen.');
+        viewHomepage();
+      } catch (err) {
+        progress.textContent = '';
+        fail(err, 'Uploaden');
+      }
+    });
+    card.querySelector('[data-remove]')?.addEventListener('click', async () => {
+      if (!confirm('Deze foto verwijderen?')) return;
+      const { error } = await sb.from('site_images').delete().eq('key', key);
+      if (error) return fail(error, 'Verwijderen');
+      await sb.storage.from(IMAGE_BUCKET).remove([r.path]);
+      setDirty(true);
+      viewHomepage();
+    });
+    card.querySelectorAll<HTMLInputElement>('[data-f]').forEach((input) =>
+      input.addEventListener('change', async () => {
+        const { error } = await sb.from('site_images').update({ [input.dataset.f!]: orNull(input.value.trim()) }).eq('key', key);
+        if (error) return fail(error, 'Opslaan');
+        setDirty(true);
+        toast('Opgeslagen.');
+      }),
+    );
   });
 }
 

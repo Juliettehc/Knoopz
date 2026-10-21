@@ -12,10 +12,22 @@ const featured = drop ? productsInDrop(catalog, drop.id).slice(0, 4) : catalog.p
 const shopHref = drop ? dropPath(lang, drop.slug) : routes.shop[lang];
 const dropName = drop ? drop.name[lang] : t(lang, 'nav.allProducts');
 const nl = lang === 'nl';
+const img = catalog.site;
+const heroDesk = img.hero_desktop ?? img.hero_mobile;
+const heroMob = img.hero_mobile ?? img.hero_desktop;
+const insta = 'https://www.instagram.com/knoopz.wear/';
+const tiles = Array.from({ length: 6 }, (_, i) => img[`insta_${i + 1}`]);
 ---
 <Base lang={lang} alternate={routes.home[lang === 'nl' ? 'en' : 'nl']}>
-  <section class="hero ph">
-    <span class="hero-ph">[{nl ? 'Campagnebeeld Drop 01, model met pet' : 'Campaign image Drop 01, model wearing cap'}]</span>
+  <section class:list={['hero', heroDesk ? 'hero-img' : 'ph']}>
+    {heroDesk ? (
+      <picture>
+        <source media="(max-width: 760px)" srcset={heroMob!.url} />
+        <img class="hero-photo" src={heroDesk.url} alt={heroDesk.alt[lang]} fetchpriority="high" decoding="async" />
+      </picture>
+    ) : (
+      <span class="hero-ph">[{nl ? 'Campagnebeeld Drop 01, model met pet' : 'Campaign image Drop 01, model wearing cap'}]</span>
+    )}
     <div class="wrap hero-inner">
       <span class="eyebrow">{dropName}</span>
       <h1 class="h1">{nl ? 'Statement pieces met vintage knopen' : 'Statement pieces with vintage buttons'}</h1>
@@ -35,7 +47,11 @@ const nl = lang === 'nl';
 
   <section class="rule">
     <div class="section wrap story">
-      <div class="ph story-img">[{nl ? 'Detailfoto vintage knoop' : 'Close-up vintage button'}]</div>
+      {img.story ? (
+        <img class="story-img story-photo" src={img.story.url} alt={img.story.alt[lang]} loading="lazy" decoding="async" />
+      ) : (
+        <div class="ph story-img">[{nl ? 'Detailfoto vintage knoop' : 'Close-up vintage button'}]</div>
+      )}
       <div class="story-text">
         <span class="eyebrow">{t(lang, 'home.about')}</span>
         <h2 class="h2">[{nl ? 'Kop merkverhaal' : 'Brand story heading'}]</h2>
@@ -52,9 +68,17 @@ const nl = lang === 'nl';
         <a class="link-line" href="https://www.instagram.com/knoopz.wear/" target="_blank" rel="noopener">{t(lang, 'home.follow')}</a>
       </div>
       <div class="insta">
-        {Array.from({ length: 6 }, () => <div class="ph insta-tile" aria-hidden="true"></div>)}
+        {tiles.map((tile) =>
+          tile ? (
+            <a class="insta-tile insta-link" href={tile.link || insta} target="_blank" rel="noopener">
+              <img src={tile.url} alt={tile.alt[lang] || 'Instagram @knoopz.wear'} loading="lazy" decoding="async" />
+            </a>
+          ) : (
+            <div class="ph insta-tile" aria-hidden="true"></div>
+          ),
+        )}
       </div>
-      <span class="muted small">[{nl ? "Foto's van klanten die @knoopz.wear taggen" : 'Photos from customers tagging @knoopz.wear'}]</span>
+      {!tiles.some(Boolean) && <span class="muted small">[{nl ? "Foto's van klanten die @knoopz.wear taggen" : 'Photos from customers tagging @knoopz.wear'}]</span>}
     </div>
   </section>
 </Base>
@@ -62,6 +86,12 @@ const nl = lang === 'nl';
 <style>
   .hero { position: relative; min-height: min(680px, 82vh); align-items: flex-end; justify-content: stretch; padding: 0; text-transform: none; letter-spacing: normal; font-size: inherit; color: var(--ink); text-align: left; }
   .hero-ph { position: absolute; top: 24px; left: var(--gutter); font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ph-ink); }
+  .hero-img { display: flex; overflow: hidden; background: var(--surface); }
+  .hero-img picture { position: absolute; inset: 0; }
+  .hero-photo { width: 100%; height: 100%; object-fit: cover; }
+  .hero-img::after { content: ''; position: absolute; inset: 0; background: linear-gradient(to top, rgba(20, 20, 20, 0.45), rgba(20, 20, 20, 0) 55%); pointer-events: none; }
+  .hero-img .hero-inner { position: relative; z-index: 1; color: var(--white); }
+  .hero-img .eyebrow { color: rgba(255, 255, 255, 0.85); }
   .hero-inner { width: 100%; padding-top: 80px; padding-bottom: 56px; display: flex; flex-direction: column; align-items: flex-start; gap: 22px; }
   .hero-inner .h1 { max-width: 640px; }
   .stack { display: flex; flex-direction: column; gap: 32px; }
@@ -71,6 +101,10 @@ const nl = lang === 'nl';
   .story-text { display: flex; flex-direction: column; align-items: flex-start; gap: 22px; max-width: 460px; }
   .insta { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; }
   .insta-tile { aspect-ratio: 1 / 1; }
+  .story-photo { width: 100%; height: auto; object-fit: cover; }
+  .insta-link { display: block; overflow: hidden; background: var(--surface); }
+  .insta-link img { width: 100%; height: 100%; object-fit: cover; transition: opacity 0.2s; }
+  .insta-link:hover img { opacity: 0.85; }
   .small { font-size: 13px; }
   @media (max-width: 760px) {
     .hero { min-height: 560px; }
