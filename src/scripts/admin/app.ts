@@ -937,15 +937,50 @@ async function viewHomepage() {
       </div>`;
   };
 
+  const texts = await sb.from('site_texts').select('*');
+  const tmap = new Map(((texts.data ?? []) as any[]).map((r) => [r.key, r]));
+  const TEXTS = [
+    { key: 'hero_title', label: 'Grote titel bovenaan', ph: 'Statement pieces met vintage knopen', area: false },
+    { key: 'story_title', label: 'Kop bij het verhaal', ph: 'bijv. Elke knoop heeft een verhaal', area: false },
+    { key: 'story_text', label: 'Tekst bij het verhaal (2 à 3 zinnen)', ph: '', area: true },
+    { key: 'insta_title', label: 'Kop van het Instagram-blok', ph: 'bijv. Gespot met KNOOPZ', area: false },
+  ];
+  const field = (k: string, lang: 'nl' | 'en', label: string, ph: string, area: boolean) => {
+    const v = esc(tmap.get(k)?.[lang]);
+    return `<label class="a-field"><span>${label} (${lang.toUpperCase()})</span>${
+      area ? `<textarea name="${k}_${lang}" placeholder="${esc(ph)}">${v}</textarea>` : `<input name="${k}_${lang}" value="${v}" placeholder="${esc(lang === 'nl' ? ph : '')}" />`
+    }</label>`;
+  };
+
   app.innerHTML = `
     <h1>Homepage</h1>
-    <p class="a-note">Upload hier de foto's voor de homepage. Ze worden automatisch verkleind. Klik daarna op <strong>Wijzigingen publiceren</strong>.</p>
+    <p class="a-note">Pas hier de teksten en foto's van de homepage aan. Foto's worden automatisch verkleind. Klik daarna op <strong>Wijzigingen publiceren</strong>.</p>
+    <h2>Teksten</h2>
+    ${
+      texts.error
+        ? `<p class="a-error">Voer eerst het SQL-script <strong>005_homepage_teksten.sql</strong> uit in Supabase om de teksten te kunnen aanpassen.</p>`
+        : `<form class="a-form a-card" data-texts novalidate>
+      ${TEXTS.map((x) => `<div class="a-row">${field(x.key, 'nl', x.label, x.ph, x.area)}${field(x.key, 'en', x.label, '', x.area)}</div>`).join('')}
+      <p class="a-note">Leeg = de standaardtekst blijft staan. Engels leeg = de Nederlandse tekst wordt gebruikt.</p>
+      <div class="a-buttons"><button class="btn btn-dark" type="submit">Teksten opslaan</button></div>
+    </form>`
+    }
     <h2>Campagnefoto</h2>
     <div class="a-slots a-slots-2">${SITE_SLOTS.slice(0, 2).map(slot).join('')}</div>
     <h2>Verhaal</h2>
     <div class="a-slots a-slots-2">${slot(SITE_SLOTS[2])}</div>
     <h2>Instagram-blok</h2>
     <div class="a-slots a-slots-3">${SITE_SLOTS.slice(3).map(slot).join('')}</div>`;
+
+  const tform = app.querySelector<HTMLFormElement>('[data-texts]');
+  tform?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const rowsT = TEXTS.map((x) => ({ key: x.key, nl: orNull(val(tform, `${x.key}_nl`)), en: orNull(val(tform, `${x.key}_en`)) }));
+    const { error } = await sb.from('site_texts').upsert(rowsT);
+    if (error) return fail(error, 'Teksten opslaan');
+    setDirty(true);
+    toast('Teksten opgeslagen. Klik op Wijzigingen publiceren om ze op de site te zetten.');
+  });
 
   app.querySelectorAll<HTMLElement>('.a-slot').forEach((card) => {
     const key = card.dataset.key!;

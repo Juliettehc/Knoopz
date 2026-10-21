@@ -16,6 +16,7 @@ const img = catalog.site;
 const heroDesk = img.hero_desktop ?? img.hero_mobile;
 const heroMob = img.hero_mobile ?? img.hero_desktop;
 const insta = 'https://www.instagram.com/knoopz.wear/';
+const tx = (key: string) => catalog.texts[key]?.[lang];
 const tiles = Array.from({ length: 6 }, (_, i) => img[`insta_${i + 1}`]);
 ---
 <Base lang={lang} alternate={routes.home[lang === 'nl' ? 'en' : 'nl']}>
@@ -30,7 +31,7 @@ const tiles = Array.from({ length: 6 }, (_, i) => img[`insta_${i + 1}`]);
     )}
     <div class="wrap hero-inner">
       <span class="eyebrow">{dropName}</span>
-      <h1 class="h1">{nl ? 'Statement pieces met vintage knopen' : 'Statement pieces with vintage buttons'}</h1>
+      <h1 class="h1">{tx('hero_title') ?? (nl ? 'Statement pieces met vintage knopen' : 'Statement pieces with vintage buttons')}</h1>
       <a class="btn btn-primary" href={shopHref}>{t(lang, 'home.shopDrop')}</a>
     </div>
   </section>
@@ -54,8 +55,8 @@ const tiles = Array.from({ length: 6 }, (_, i) => img[`insta_${i + 1}`]);
       )}
       <div class="story-text">
         <span class="eyebrow">{t(lang, 'home.about')}</span>
-        <h2 class="h2">[{nl ? 'Kop merkverhaal' : 'Brand story heading'}]</h2>
-        <p class="lead">[{nl ? 'Twee zinnen over de vintage knopen. Tekst van jullie.' : 'Two sentences about the vintage buttons.'}]</p>
+        <h2 class="h2">{tx('story_title') ?? `[${nl ? 'Kop merkverhaal' : 'Brand story heading'}]`}</h2>
+        <p class="lead">{tx('story_text') ?? `[${nl ? 'Twee zinnen over de vintage knopen. Tekst van jullie.' : 'Two sentences about the vintage buttons.'}]`}</p>
         <a class="link-line" href={routes.about[lang]}>{t(lang, 'home.readStory')}</a>
       </div>
     </div>
@@ -64,7 +65,7 @@ const tiles = Array.from({ length: 6 }, (_, i) => img[`insta_${i + 1}`]);
   <section class="rule">
     <div class="section wrap stack">
       <div class="head-row">
-        <h2 class="h2">[{nl ? 'Kop Instagram-blok' : 'Instagram heading'}]</h2>
+        <h2 class="h2">{tx('insta_title') ?? `[${nl ? 'Kop Instagram-blok' : 'Instagram heading'}]`}</h2>
         <a class="link-line" href="https://www.instagram.com/knoopz.wear/" target="_blank" rel="noopener">{t(lang, 'home.follow')}</a>
       </div>
       <div class="insta">

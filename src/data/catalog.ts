@@ -45,6 +45,7 @@ export interface Catalog {
   drops: Drop[];
   products: Product[];
   site: Record<string, SiteImage>; // homepage-foto's: hero_desktop, hero_mobile, story, insta_1..6
+  texts: Record<string, T>; // homepage-teksten: hero_title, story_title, story_text, insta_title
 }
 
 const t = (nl: string | null | undefined, en: string | null | undefined): T => ({ nl: nl ?? '', en: en || nl || '' });
@@ -56,14 +57,16 @@ async function rest<R>(path: string): Promise<R> {
 }
 
 async function fromSupabase(): Promise<Catalog> {
-  const [dropRows, productRows, siteRows] = await Promise.all([
+  const [dropRows, productRows, siteRows, textRows] = await Promise.all([
     rest<any[]>('drops?select=*&published=eq.true&order=sort.asc,created_at.asc'),
     rest<any[]>(
       'products?select=*,product_variants(status,stock),product_images(path_small,path_large,alt_nl,alt_en,sort)&published=eq.true&order=sort.asc,created_at.asc',
     ),
     // Homepage-foto's zijn optioneel: als de tabel (nog) niet bestaat, bouwt de site gewoon met plaatshouders.
     rest<any[]>('site_images?select=*').catch(() => [] as any[]),
+    rest<any[]>('site_texts?select=*').catch(() => [] as any[]),
   ]);
+  const texts: Record<string, T> = Object.fromEntries(textRows.filter((r) => r.nl).map((r) => [r.key, t(r.nl, r.en)]));
   const site: Record<string, SiteImage> = Object.fromEntries(
     siteRows.map((r) => [r.key, { url: publicImageUrl(r.path), alt: t(r.alt_nl, r.alt_en), link: r.link || null }]),
   );
@@ -89,7 +92,7 @@ async function fromSupabase(): Promise<Catalog> {
       images,
     };
   });
-  return { drops, products, site };
+  return { drops, products, site, texts };
 }
 
 // Voorbeelddata, alleen voor lokaal ontwikkelen zonder database (KNOOPZ_SAMPLE_DATA=1).
@@ -118,7 +121,7 @@ function sample(): Catalog {
       images: [],
     };
   });
-  return { drops: [drop], products, site: {} };
+  return { drops: [drop], products, site: {}, texts: {} };
 }
 
 let cache: Promise<Catalog> | undefined;
