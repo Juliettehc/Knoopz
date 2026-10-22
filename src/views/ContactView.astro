@@ -1,0 +1,122 @@
+---
+import Base from '../layouts/Base.astro';
+import { t, routes, type Lang } from '../i18n/ui';
+import { loadCatalog } from '../data/catalog';
+
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const other: Lang = lang === 'nl' ? 'en' : 'nl';
+const { texts } = await loadCatalog();
+const tx = (key: string) => texts[key]?.[lang] ?? '';
+const title = tx('contact_title') || t(lang, 'contact.title');
+const intro = tx('contact_intro') || t(lang, 'contact.intro');
+const email = tx('contact_email');
+const company = tx('contact_company');
+const kvk = tx('contact_kvk');
+const vat = tx('contact_vat');
+const address = tx('contact_address');
+const labels = {
+  sent: t(lang, 'contact.sent'),
+  invalid: t(lang, 'contact.invalid'),
+  tooMany: t(lang, 'contact.tooMany'),
+  server: t(lang, 'err.server'),
+};
+---
+<Base lang={lang} title={title} alternate={routes.contact[other]}>
+  <section class="wrap section ct" data-contact data-lang={lang}>
+    <div class="ct-info">
+      <h1 class="h1">{title}</h1>
+      {intro.split(/\n\s*\n/).map((p) => <p class="lead">{p}</p>)}
+
+      {email && (
+        <div class="ct-item">
+          <span class="label">{t(lang, 'contact.mail')}</span>
+          <a href={`mailto:${email}`}>{email}</a>
+        </div>
+      )}
+      <div class="ct-item">
+        <span class="label">{t(lang, 'contact.social')}</span>
+        <a href="https://www.instagram.com/knoopz.wear/" target="_blank" rel="noopener">Instagram · @knoopz.wear</a>
+        <a href="https://www.tiktok.com/@knoopz.wear" target="_blank" rel="noopener">TikTok · @knoopz.wear</a>
+      </div>
+      {(company || kvk || vat || address) && (
+        <div class="ct-item ct-company">
+          <span class="label">{t(lang, 'contact.company')}</span>
+          {company && <span>{company}</span>}
+          {address && address.split('\n').map((l) => <span>{l}</span>)}
+          {kvk && <span>{t(lang, 'contact.kvk')}: {kvk}</span>}
+          {vat && <span>{t(lang, 'contact.vat')}: {vat}</span>}
+        </div>
+      )}
+    </div>
+
+    <form class="ct-form" data-form novalidate>
+      <h2 class="label">{t(lang, 'contact.form')}</h2>
+      <p class="ct-alert" role="status" data-msg hidden></p>
+      <label class="f"><span>{t(lang, 'contact.name')}</span><input name="name" autocomplete="name" required maxlength="100" /></label>
+      <label class="f"><span>{t(lang, 'contact.email')}</span><input name="email" type="email" autocomplete="email" required maxlength="200" /></label>
+      <label class="f"><span>{t(lang, 'contact.message')}</span><textarea name="message" required minlength="5" maxlength="5000" rows="6"></textarea></label>
+      <label class="hp" aria-hidden="true">Website<input name="website" tabindex="-1" autocomplete="off" /></label>
+      <button type="submit" class="btn btn-dark btn-block" data-send>{t(lang, 'contact.send')}</button>
+    </form>
+    <script type="application/json" data-labels set:html={JSON.stringify(labels)}></script>
+  </section>
+</Base>
+
+<style>
+  .ct { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 520px); gap: var(--s6); align-items: start; }
+  .ct-info { display: flex; flex-direction: column; gap: 24px; }
+  .ct-item { display: flex; flex-direction: column; gap: 6px; font-size: 15px; }
+  .ct-item a { text-underline-offset: 3px; }
+  .ct-company span:not(.label) { color: var(--muted); }
+  .ct-form { display: flex; flex-direction: column; gap: 16px; background: var(--white); border: 1px solid var(--line); padding: 32px; }
+  .ct-form h2 { margin: 0 0 4px; }
+  .f { display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+  .f input, .f textarea { font: inherit; font-size: 16px; padding: 12px 14px; border: 1px solid #cfc8bc; background: var(--white); color: var(--ink); border-radius: 0; width: 100%; }
+  .f input { min-height: 50px; }
+  .f textarea { resize: vertical; min-height: 140px; }
+  .f input:focus, .f textarea:focus { outline: 2px solid var(--ink); outline-offset: 0; }
+  .hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+  .ct-alert { margin: 0; padding: 12px 14px; font-size: 14px; border: 1px solid var(--line); }
+  .ct-alert.bad { border-color: var(--accent); color: var(--accent); }
+  @media (max-width: 900px) {
+    .ct { grid-template-columns: 1fr; gap: var(--s5); }
+    .ct-form { padding: 20px; }
+  }
+</style>
+
+<script>
+  const root = document.querySelector<HTMLElement>('[data-contact]')!;
+  const L = JSON.parse(root.querySelector('[data-labels]')!.textContent || '{}');
+  const form = root.querySelector<HTMLFormElement>('[data-form]')!;
+  const msg = root.querySelector<HTMLElement>('[data-msg]')!;
+  const btn = root.querySelector<HTMLButtonElement>('[data-send]')!;
+  const show = (text: string, bad: boolean) => {
+    msg.textContent = text;
+    msg.classList.toggle('bad', bad);
+    msg.hidden = false;
+  };
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const get = (n: string) => ((form.elements.namedItem(n) as HTMLInputElement).value || '').trim();
+    if (!form.checkValidity() || get('message').length < 5) return show(L.invalid, true);
+    btn.disabled = true;
+    try {
+      const res = await fetch('/api/contact', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: get('name'), email: get('email'), message: get('message'), website: get('website'), lang: root.dataset.lang }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        form.reset();
+        show(L.sent, false);
+      } else {
+        show(data.error === 'too_many' ? L.tooMany : data.error === 'invalid' ? L.invalid : L.server, true);
+      }
+    } catch {
+      show(L.server, true);
+    }
+    btn.disabled = false;
+  });
+</script>

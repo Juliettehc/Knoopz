@@ -139,6 +139,7 @@ async function route() {
   if (section === 'kortingscodes') return viewCodes();
   if (section === 'homepage') return viewSitePage(HOME_CFG);
   if (section === 'over') return viewSitePage(ABOUT_CFG);
+  if (section === 'contact') return viewSitePage(CONTACT_CFG);
   if (section === 'instellingen') return viewSettings();
   return viewProducts();
 }
@@ -899,9 +900,9 @@ async function viewOrder(id: string) {
 
 // ---------- homepage en Over KNOOPZ: teksten en foto's ----------
 type Slot = { key: string; label: string; hint: string; max: number; ratio: string; link?: boolean };
-type TextField = { key: string; label: string; ph?: string; area?: boolean };
+type TextField = { key: string; label: string; ph?: string; area?: boolean; single?: boolean };
 type SiteSection = { heading: string; texts?: TextField[]; slots?: Slot[]; cols?: 2 | 3 };
-type SitePageCfg = { route: string; title: string; note: string; sql: string; sections: SiteSection[] };
+type SitePageCfg = { route: string; title: string; note: string; sql: string; sections: SiteSection[]; messages?: boolean };
 
 const HOME_CFG: SitePageCfg = {
   route: 'homepage',
@@ -959,6 +960,54 @@ const ABOUT_CFG: SitePageCfg = {
   ],
 };
 
+const CONTACT_CFG: SitePageCfg = {
+  route: 'contact',
+  title: 'Contact',
+  note: 'Berichten via het contactformulier verschijnen hieronder. Daaronder pas je de contactpagina aan.',
+  sql: '007_contact.sql',
+  messages: true,
+  sections: [
+    {
+      heading: 'Contactpagina',
+      texts: [
+        { key: 'contact_title', label: 'Titel', ph: 'Contact' },
+        { key: 'contact_intro', label: 'Korte tekst', ph: 'bijv. Vragen over een pet of je bestelling? We reageren binnen 2 werkdagen.', area: true },
+        { key: 'contact_email', label: 'E-mailadres voor klanten', ph: 'bijv. info@knoopz.nl', single: true },
+      ],
+    },
+    {
+      heading: 'Bedrijfsgegevens',
+      texts: [
+        { key: 'contact_company', label: 'Bedrijfsnaam (zoals bij de KvK)', single: true },
+        { key: 'contact_kvk', label: 'KvK-nummer', single: true },
+        { key: 'contact_vat', label: 'Btw-nummer (optioneel)', single: true },
+        { key: 'contact_address', label: 'Adres (optioneel)', area: true, single: true },
+      ],
+    },
+  ],
+};
+
+async function messagesHtml(): Promise<string> {
+  const { data, error } = await sb.from('contact_messages').select('*').order('created_at', { ascending: false }).limit(200);
+  if (error) throw error;
+  const rows = data as any[];
+  if (!rows.length) return '<h2>Berichten</h2><p class="a-note">Nog geen berichten.</p>';
+  return `<h2>Berichten (${rows.filter((r) => !r.handled).length} open)</h2>
+    <div class="a-msgs">${rows
+      .map(
+        (r) => `<div class="a-card a-msg${r.handled ? ' done' : ''}" data-msg="${esc(r.id)}">
+        <div class="a-msg-head"><strong>${esc(r.name)}</strong> <a href="mailto:${esc(r.email)}">${esc(r.email)}</a> <span class="muted">${esc(dateTime(r.created_at))}</span></div>
+        <p class="a-msg-body">${esc(r.message)}</p>
+        <div class="a-buttons">
+          <a class="btn btn-outline" href="mailto:${esc(r.email)}?subject=${encodeURIComponent('Re: je bericht aan KNOOPZ')}">Beantwoorden</a>
+          <button type="button" class="a-link" data-toggle>${r.handled ? 'Markeer als open' : 'Markeer als afgehandeld'}</button>
+          <button type="button" class="a-link" data-del>Verwijderen</button>
+        </div>
+      </div>`,
+      )
+      .join('')}</div>`;
+}
+
 async function viewSitePage(cfg: SitePageCfg) {
   app.innerHTML = '<p class="muted">Laden…</p>';
   const [imgs, texts] = await Promise.all([sb.from('site_images').select('*'), sb.from('site_texts').select('*')]);
@@ -969,10 +1018,19 @@ async function viewSitePage(cfg: SitePageCfg) {
   const rows = new Map((imgs.data as any[]).map((r) => [r.key, r]));
   const tmap = new Map((texts.data as any[]).map((r) => [r.key, r]));
 
+  let msgs = '';
+  if (cfg.messages) {
+    try {
+      msgs = await messagesHtml();
+    } catch {
+      app.innerHTML = `<h1>${esc(cfg.title)}</h1><p class="a-error">Dit onderdeel is nog niet ingesteld in de database. Voer eerst het SQL-script <strong>${esc(cfg.sql)}</strong> uit in Supabase.</p>`;
+      return;
+    }
+  }
   const field = (f: TextField, lang: 'nl' | 'en') => {
     const v = esc(tmap.get(f.key)?.[lang]);
     const ph = esc(lang === 'nl' ? f.ph ?? '' : '');
-    return `<label class="a-field"><span>${esc(f.label)} (${lang.toUpperCase()})</span>${
+    return `<label class="a-field"><span>${esc(f.label)}${f.single ? '' : ` (${lang.toUpperCase()})`}</span>${
       f.area ? `<textarea name="${f.key}_${lang}" placeholder="${ph}">${v}</textarea>` : `<input name="${f.key}_${lang}" value="${v}" placeholder="${ph}" />`
     }</label>`;
   };
@@ -1004,12 +1062,13 @@ async function viewSitePage(cfg: SitePageCfg) {
 
   app.innerHTML = `
     <h1>${esc(cfg.title)}</h1>
-    <p class="a-note">${esc(cfg.note)} Foto's worden automatisch verkleind. Klik daarna op <strong>Wijzigingen publiceren</strong>.</p>
+    <p class="a-note">${esc(cfg.note)} ${allSlots.length ? "Foto's worden automatisch verkleind. " : ''}Klik daarna op <strong>Wijzigingen publiceren</strong>.</p>
+    ${msgs}
     <form data-texts novalidate>
       ${cfg.sections
         .map(
           (s) => `<h2>${esc(s.heading)}</h2>
-        ${s.texts?.length ? `<div class="a-form a-card">${s.texts.map((f) => `<div class="a-row">${field(f, 'nl')}${field(f, 'en')}</div>`).join('')}</div>` : ''}
+        ${s.texts?.length ? `<div class="a-form a-card">${s.texts.map((f) => `<div class="a-row">${field(f, 'nl')}${f.single ? '' : field(f, 'en')}</div>`).join('')}</div>` : ''}
         ${s.slots?.length ? `<div class="a-slots ${s.cols === 3 ? 'a-slots-3' : 'a-slots-2'}" style="margin-top:16px">${s.slots.map(slot).join('')}</div>` : ''}`,
         )
         .join('')}
@@ -1019,11 +1078,26 @@ async function viewSitePage(cfg: SitePageCfg) {
   const tform = app.querySelector<HTMLFormElement>('[data-texts]')!;
   tform.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const rowsT = allTexts.map((x) => ({ key: x.key, nl: orNull(val(tform, `${x.key}_nl`)), en: orNull(val(tform, `${x.key}_en`)) }));
+    const rowsT = allTexts.map((x) => ({ key: x.key, nl: orNull(val(tform, `${x.key}_nl`)), en: x.single ? null : orNull(val(tform, `${x.key}_en`)) }));
     const { error } = await sb.from('site_texts').upsert(rowsT);
     if (error) return fail(error, 'Teksten opslaan');
     setDirty(true);
     toast('Teksten opgeslagen. Klik op Wijzigingen publiceren om ze op de site te zetten.');
+  });
+
+  app.querySelectorAll<HTMLElement>('[data-msg]').forEach((card) => {
+    const id = card.dataset.msg!;
+    card.querySelector('[data-toggle]')!.addEventListener('click', async () => {
+      const { error } = await sb.from('contact_messages').update({ handled: !card.classList.contains('done') }).eq('id', id);
+      if (error) return fail(error, 'Opslaan');
+      viewSitePage(cfg);
+    });
+    card.querySelector('[data-del]')!.addEventListener('click', async () => {
+      if (!confirm('Dit bericht verwijderen?')) return;
+      const { error } = await sb.from('contact_messages').delete().eq('id', id);
+      if (error) return fail(error, 'Verwijderen');
+      viewSitePage(cfg);
+    });
   });
 
   app.querySelectorAll<HTMLElement>('.a-slot').forEach((card) => {
