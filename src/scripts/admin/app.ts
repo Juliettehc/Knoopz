@@ -128,6 +128,8 @@ async function route() {
   const [, section, id] = (location.hash || '#/producten').split('/');
   document.querySelectorAll<HTMLAnchorElement>('[data-nav]').forEach((a) => {
     a.toggleAttribute('aria-current', false);
+    if (a.dataset.nav === (section === 'product' ? 'producten' : section === 'bestelling' ? 'bestellingen' : section || 'producten'))
+      document.querySelector('[data-current]')!.textContent = a.textContent;
     const navKey = section === 'product' ? 'producten' : section === 'bestelling' ? 'bestellingen' : section;
     if (a.dataset.nav === navKey) a.setAttribute('aria-current', 'page');
   });
@@ -145,7 +147,34 @@ async function route() {
   return viewProducts();
 }
 
-window.addEventListener('hashchange', route);
+window.addEventListener('hashchange', () => {
+  setMenu(false);
+  route();
+});
+
+// ---------- uitklapmenu ----------
+const menuEl = document.querySelector<HTMLElement>('[data-menu]')!;
+const menuBackdrop = document.querySelector<HTMLElement>('[data-menu-backdrop]')!;
+const menuBtn = document.querySelector<HTMLButtonElement>('[data-menu-open]')!;
+function setMenu(open: boolean) {
+  menuEl.hidden = !open;
+  menuBackdrop.hidden = !open;
+  menuBtn.setAttribute('aria-expanded', String(open));
+  if (open) menuEl.querySelector<HTMLElement>('[aria-current="page"], [data-nav]')?.focus();
+}
+menuBtn.addEventListener('click', () => setMenu(true));
+document.querySelector('[data-menu-close]')!.addEventListener('click', () => {
+  setMenu(false);
+  menuBtn.focus();
+});
+menuBackdrop.addEventListener('click', () => setMenu(false));
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !menuEl.hidden) {
+    setMenu(false);
+    menuBtn.focus();
+  }
+});
+menuEl.querySelectorAll('[data-nav]').forEach((a) => a.addEventListener('click', () => setMenu(false)));
 
 async function logout() {
   await sb.auth.signOut();

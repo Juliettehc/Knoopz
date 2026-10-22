@@ -15,24 +15,41 @@ import '../../styles/admin.css';
   </head>
   <body class="admin">
     <header class="a-top" data-topbar hidden>
-      <a class="a-brand" href="#/producten"><img src="/knoopz-logo.png" alt="KNOOPZ" width="900" height="169" /><span>Beheer</span></a>
+      <button type="button" class="a-burger" aria-label="Menu openen" aria-expanded="false" aria-controls="a-drawer" data-menu-open>
+        <svg width="22" height="16" viewBox="0 0 22 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M0 1h22M0 8h22M0 15h22" /></svg>
+        <span>Menu</span>
+      </button>
+      <a class="a-brand" href="#/bestellingen"><img src="/knoopz-logo.png" alt="KNOOPZ" width="900" height="169" /><span>Beheer</span></a>
+      <span class="a-current" data-current></span>
+      <div class="a-actions">
+        <button type="button" class="btn btn-primary a-publish" data-publish><span class="a-pub-long">Wijzigingen </span>publiceren</button>
+      </div>
+    </header>
+    <div class="a-backdrop" data-menu-backdrop hidden></div>
+    <aside class="a-drawer" id="a-drawer" aria-label="Beheermenu" data-menu hidden>
+      <div class="a-drawer-head">
+        <span class="label">Menu</span>
+        <button type="button" class="a-icon" aria-label="Menu sluiten" data-menu-close>✕</button>
+      </div>
       <nav class="a-nav" aria-label="Beheer">
+        <span class="a-nav-group">Winkel</span>
         <a href="#/bestellingen" data-nav="bestellingen">Bestellingen</a>
         <a href="#/producten" data-nav="producten">Producten</a>
         <a href="#/drops" data-nav="drops">Drops</a>
+        <a href="#/kortingscodes" data-nav="kortingscodes">Kortingscodes</a>
+        <span class="a-nav-group">Pagina's</span>
         <a href="#/homepage" data-nav="homepage">Homepage</a>
         <a href="#/over" data-nav="over">Over KNOOPZ</a>
         <a href="#/contact" data-nav="contact">Contact</a>
         <a href="#/faq" data-nav="faq">FAQ</a>
-        <a href="#/kortingscodes" data-nav="kortingscodes">Kortingscodes</a>
+        <span class="a-nav-group">Algemeen</span>
         <a href="#/instellingen" data-nav="instellingen">Instellingen</a>
       </nav>
-      <div class="a-actions">
-        <button type="button" class="btn btn-primary a-publish" data-publish>Wijzigingen publiceren</button>
+      <div class="a-drawer-foot">
         <span class="a-user" data-user></span>
         <button type="button" class="a-link" data-logout>Uitloggen</button>
       </div>
-    </header>
+    </aside>
     <div class="a-dirty" data-dirty hidden>
       Je hebt wijzigingen die nog niet op de website staan. Klik op <strong>Wijzigingen publiceren</strong> als je klaar bent.
     </div>
