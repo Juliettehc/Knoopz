@@ -74,6 +74,10 @@ strong, b { font-weight: 600; color: var(--ink); }
 }
 .btn-primary { background: var(--accent); color: var(--white); }
 .btn-dark { background: var(--ink); color: var(--bg); }
+/* Op de website zijn de hoofdknoppen KNOOPZ-rood; in het beheer blijven ze zwart */
+body:not(.admin) .btn-dark { background: var(--accent); color: var(--white); }
+body:not(.admin) .btn-dark:hover { background: #8e1a27; opacity: 1; }
+body:not(.admin) .btn-dark[disabled] { background: var(--accent); opacity: 0.6; cursor: wait; }
 .btn-outline { border-color: var(--ink); background: transparent; }
 .btn-block { width: 100%; min-height: 56px; }
 .btn:hover { opacity: 0.88; }
