@@ -92,7 +92,10 @@ const enHref = lang === 'en' ? Astro.url.pathname : alternate;
   .hdr-side { display: flex; align-items: center; min-width: 0; }
   .hdr-right { justify-content: flex-end; gap: 24px; }
   .logo img { height: 24px; width: auto; }
-  .nav-desktop { display: flex; gap: 28px; align-items: center; }
+  .nav-desktop { display: flex; gap: 28px; align-items: center; align-self: stretch; }
+  /* Het Shop-vak loopt door tot de onderkant van de balk, zodat de muis het uitklapmenu kan bereiken zonder dat het sluit */
+  .nav-shop { align-self: stretch; display: flex; align-items: center; }
+  .hdr-side:first-child { align-self: stretch; }
   .nav-link { background: none; border: 0; padding: 0; text-decoration: none; font: inherit; letter-spacing: inherit; text-transform: inherit; min-height: 44px; display: inline-flex; align-items: center; gap: 6px; }
   .nav-link:hover { text-decoration: underline; text-underline-offset: 6px; }
   .caret { font-size: 10px; }
@@ -152,8 +155,16 @@ const enHref = lang === 'en' ? Astro.url.pathname : alternate;
   toggle?.addEventListener('click', () => setMega(toggle.getAttribute('aria-expanded') !== 'true'));
   backdrop?.addEventListener('click', () => setMega(false));
   if (window.matchMedia('(hover: hover)').matches) {
-    shop?.addEventListener('mouseenter', () => setMega(true));
-    shop?.addEventListener('mouseleave', () => setMega(false));
+    // Kleine vertraging bij sluiten: even buiten het menu komen met de muis sluit het niet meteen
+    let closeTimer: number | undefined;
+    shop?.addEventListener('mouseenter', () => {
+      clearTimeout(closeTimer);
+      setMega(true);
+    });
+    shop?.addEventListener('mouseleave', () => {
+      closeTimer = window.setTimeout(() => setMega(false), 250);
+    });
+    mega?.addEventListener('mouseenter', () => clearTimeout(closeTimer));
   }
 
   const menu = document.querySelector<HTMLElement>('[data-menu]');
