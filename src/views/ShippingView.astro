@@ -1,0 +1,61 @@
+---
+import Base from '../layouts/Base.astro';
+import { t, routes, formatPrice, type Lang } from '../i18n/ui';
+import { loadCatalog } from '../data/catalog';
+
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const other: Lang = lang === 'nl' ? 'en' : 'nl';
+const { texts, shipping: sh } = await loadCatalog();
+const tx = (key: string) => texts[key]?.[lang] ?? '';
+const paras = (s: string) => s.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
+const title = tx('ship_title') || t(lang, 'ship.title');
+const intro = tx('ship_intro');
+const blocks = [1, 2, 3, 4].map((n) => ({ title: tx(`ship_${n}_title`), text: paras(tx(`ship_${n}_text`)) })).filter((b) => b.title || b.text.length);
+const cost = (c: number | null) => (c === 0 ? t(lang, 'ship.freeAlways') : formatPrice(lang, c));
+---
+<Base lang={lang} title={title} alternate={routes.shipping[other]}>
+  <section class="wrap section sh">
+    <h1 class="h1">{title}</h1>
+    {intro && paras(intro).map((p) => <p class="lead">{p}</p>)}
+
+    {sh.nl !== null && (
+      <div class="sh-costs">
+        <span class="label">{t(lang, 'ship.costs')}</span>
+        <dl>
+          <div><dt>{t(lang, 'ship.nl')}</dt><dd>{cost(sh.nl)}</dd></div>
+          <div><dt>{t(lang, 'ship.be')}</dt><dd>{cost(sh.be)}</dd></div>
+        </dl>
+        {sh.freeFrom && <p class="muted">{t(lang, 'ship.free').replace('{v}', formatPrice(lang, sh.freeFrom))}</p>}
+      </div>
+    )}
+
+    {blocks.length ? (
+      blocks.map((b) => (
+        <div class="sh-block">
+          {b.title && <h2 class="h3">{b.title}</h2>}
+          {b.text.map((p) => <p>{p}</p>)}
+        </div>
+      ))
+    ) : (
+      !intro && <p class="lead">{t(lang, 'page.soon')}</p>
+    )}
+
+    <div class="sh-more">
+      <span>{t(lang, 'faq.more')}</span>
+      <a class="link-line" href={routes.contact[lang]}>{t(lang, 'faq.contact')}</a>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .sh { display: flex; flex-direction: column; gap: 32px; max-width: 860px; }
+  .sh-costs { background: var(--white); border: 1px solid var(--line); padding: 24px 28px; display: flex; flex-direction: column; gap: 12px; }
+  .sh-costs dl { margin: 0; display: flex; flex-direction: column; gap: 6px; }
+  .sh-costs dl div { display: flex; justify-content: space-between; gap: 16px; max-width: 360px; font-size: 15px; }
+  .sh-costs dt, .sh-costs dd { margin: 0; }
+  .sh-costs p { margin: 0; font-size: 14px; }
+  .sh-block { display: flex; flex-direction: column; gap: 14px; padding-top: 28px; border-top: 1px solid var(--line); }
+  .sh-block p { margin: 0; font-size: 16px; line-height: 1.75; color: var(--muted); white-space: pre-line; }
+  .sh-more { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: baseline; font-size: 15px; }
+</style>

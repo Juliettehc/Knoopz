@@ -19,6 +19,13 @@ const placeholderLabels = nl ? ['Hoofdfoto', 'Achterkant', 'Detail knoop', 'Op m
 const hasImages = p.images.length > 0;
 const main = p.images[0];
 const text = (v: string, fallback: string) => (v && v.trim() ? v : fallback);
+const shipShort = catalog.texts.ship_short?.[lang] ?? '';
+const shipText = catalog.texts.ship_product?.[lang] ?? '';
+const sh = catalog.shipping;
+const shipCosts = sh.nl === null ? '' : [
+  `${t(lang, 'ship.costs')}: ${t(lang, 'ship.nl')} ${sh.nl === 0 ? t(lang, 'ship.freeAlways') : formatPrice(lang, sh.nl)}`,
+  `${t(lang, 'ship.be')} ${sh.be === 0 ? t(lang, 'ship.freeAlways') : formatPrice(lang, sh.be)}`,
+].join(' · ') + (sh.freeFrom ? `. ${t(lang, 'ship.free').replace('{v}', formatPrice(lang, sh.freeFrom))}.` : '.');
 ---
 <Base lang={lang} title={p.name[lang]} alternate={productPath(other, p.slug)}>
   <div class="wrap crumbs muted">
@@ -86,7 +93,7 @@ const text = (v: string, fallback: string) => (v && v.trim() ? v : fallback);
       </button>
       <button type="button" class="btn btn-block" disabled data-sold-show hidden={!sold}>{soldLabel}</button>
       {p.description[lang] && <p class="desc">{p.description[lang]}</p>}
-      <span class="muted small">{t(lang, 'product.shippingInfo')}</span>
+      {shipShort && <span class="muted small">{shipShort}</span>}
       <div class="acc">
         <details open>
           <summary>{t(lang, 'product.details')}</summary>
@@ -98,7 +105,9 @@ const text = (v: string, fallback: string) => (v && v.trim() ? v : fallback);
         </details>
         <details>
           <summary>{t(lang, 'product.shipping')}</summary>
-          <p>{nl ? '[Verzendkosten, levertijd en retourbeleid.]' : '[Shipping costs, delivery time and returns policy.]'}</p>
+          {shipText && <p>{shipText}</p>}
+          {shipCosts && <p>{shipCosts}</p>}
+          <p><a href={routes.shipping[lang]}>{t(lang, 'ship.more')}</a></p>
         </details>
       </div>
     </div>

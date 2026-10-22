@@ -143,6 +143,7 @@ async function route() {
   if (section === 'over') return viewSitePage(ABOUT_CFG);
   if (section === 'contact') return viewSitePage(CONTACT_CFG);
   if (section === 'faq') return viewFaq();
+  if (section === 'verzending') return viewSitePage(SHIP_CFG);
   if (section === 'instellingen') return viewSettings();
   return viewProducts();
 }
@@ -1012,6 +1013,41 @@ const CONTACT_CFG: SitePageCfg = {
         { key: 'contact_kvk', label: 'KvK-nummer', single: true },
         { key: 'contact_vat', label: 'Btw-nummer (optioneel)', single: true },
         { key: 'contact_address', label: 'Adres (optioneel)', area: true, single: true },
+      ],
+    },
+  ],
+};
+
+const SHIP_CFG: SitePageCfg = {
+  route: 'verzending',
+  title: 'Verzending en retour',
+  note: 'De verzendkosten worden automatisch getoond (in te stellen bij Instellingen). Een blok zonder kop en tekst wordt niet getoond. Laat een witregel tussen alinea\'s.',
+  sql: '009_verzending_retour.sql',
+  sections: [
+    {
+      heading: 'Bovenaan',
+      texts: [
+        { key: 'ship_title', label: 'Titel', ph: 'Verzending en retour' },
+        { key: 'ship_intro', label: 'Inleiding (optioneel)', area: true },
+      ],
+    },
+    ...[
+      ['Verzending', 'bijv. Verzending en levertijd'],
+      ['Retourneren', 'bijv. Retourneren binnen 14 dagen'],
+      ['Ruilen / beschadigd', 'bijv. Beschadigd of verkeerd product?'],
+      ['Overig', ''],
+    ].map(([h, ph], i) => ({
+      heading: `Blok ${i + 1}: ${h}`,
+      texts: [
+        { key: `ship_${i + 1}_title`, label: 'Kop', ph },
+        { key: `ship_${i + 1}_text`, label: 'Tekst', area: true },
+      ],
+    })),
+    {
+      heading: 'Op de productpagina',
+      texts: [
+        { key: 'ship_short', label: 'Korte regel onder de knop In winkelwagen', ph: 'bijv. Verzonden binnen 2 werkdagen' },
+        { key: 'ship_product', label: 'Tekst bij "Verzending en retour" (de kosten en een link naar deze pagina komen er automatisch bij)', area: true },
       ],
     },
   ],
