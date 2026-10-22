@@ -78,6 +78,8 @@ body.admin { background: var(--bg); }
 .a-msg-head { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: baseline; font-size: 14px; }
 .a-msg-body { margin: 0; white-space: pre-wrap; font-size: 15px; }
 .a-msg .btn { min-height: 40px; padding: 0 16px; }
+.a-faq { margin-bottom: 16px; }
+.a-faq-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .a-savebar { position: sticky; bottom: 0; z-index: 5; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-top: 24px; padding: 14px 16px; background: var(--bg); border-top: 1px solid var(--line); }
 .a-savebar .btn { min-height: 44px; padding: 0 22px; }
 .a-cell-actions .a-link { min-height: 32px; margin-left: 8px; }

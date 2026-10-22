@@ -140,6 +140,7 @@ async function route() {
   if (section === 'homepage') return viewSitePage(HOME_CFG);
   if (section === 'over') return viewSitePage(ABOUT_CFG);
   if (section === 'contact') return viewSitePage(CONTACT_CFG);
+  if (section === 'faq') return viewFaq();
   if (section === 'instellingen') return viewSettings();
   return viewProducts();
 }
@@ -1139,6 +1140,85 @@ async function viewSitePage(cfg: SitePageCfg) {
         if (error) return fail(error, 'Opslaan');
         setDirty(true);
         toast('Opgeslagen.');
+      }),
+    );
+  });
+}
+
+// ---------- FAQ ----------
+async function viewFaq() {
+  app.innerHTML = '<p class="muted">Laden…</p>';
+  const { data, error } = await sb.from('faq_items').select('*').order('sort').order('created_at');
+  if (error) {
+    app.innerHTML = '<h1>FAQ</h1><p class="a-error">Dit onderdeel is nog niet ingesteld in de database. Voer eerst het SQL-script <strong>008_faq.sql</strong> uit in Supabase.</p>';
+    return;
+  }
+  const items = data as any[];
+  const form = (it: any | null, i: number) => `
+    <form class="a-form a-card a-faq" data-faq="${esc(it?.id ?? '')}" novalidate>
+      ${
+        it
+          ? `<div class="a-faq-head"><strong>Vraag ${i + 1}</strong>${it.published ? '' : ' <span class="a-pill hidden">Verborgen</span>'}
+        <span class="a-image-actions"><button type="button" class="a-icon" data-move="-1" aria-label="Omhoog" ${i === 0 ? 'disabled' : ''}>↑</button><button type="button" class="a-icon" data-move="1" aria-label="Omlaag" ${i === items.length - 1 ? 'disabled' : ''}>↓</button></span></div>`
+          : ''
+      }
+      <div class="a-row">
+        <label class="a-field"><span>Vraag (NL) *</span><input name="question_nl" value="${esc(it?.question_nl)}" required /></label>
+        <label class="a-field"><span>Vraag (EN)</span><input name="question_en" value="${esc(it?.question_en)}" /></label>
+      </div>
+      <div class="a-row">
+        <label class="a-field"><span>Antwoord (NL) *</span><textarea name="answer_nl" required>${esc(it?.answer_nl)}</textarea></label>
+        <label class="a-field"><span>Antwoord (EN)</span><textarea name="answer_en">${esc(it?.answer_en)}</textarea></label>
+      </div>
+      <label class="a-check"><input type="checkbox" name="published" ${it?.published !== false ? 'checked' : ''} /> Zichtbaar op de website</label>
+      <div class="a-buttons">
+        <button class="btn btn-dark" type="submit">${it ? 'Opslaan' : 'Vraag toevoegen'}</button>
+        ${it ? '<button class="btn btn-danger" type="button" data-del>Verwijderen</button>' : ''}
+      </div>
+    </form>`;
+
+  app.innerHTML = `
+    <h1>FAQ</h1>
+    <p class="a-note">Veelgestelde vragen voor de pagina FAQ. Engels leeg = de Nederlandse tekst wordt gebruikt. Klik na het aanpassen op <strong>Wijzigingen publiceren</strong>.</p>
+    ${items.length ? items.map((it, i) => form(it, i)).join('') : '<p class="a-note">Nog geen vragen.</p>'}
+    <h2>Nieuwe vraag</h2>
+    ${form(null, items.length)}`;
+
+  app.querySelectorAll<HTMLFormElement>('[data-faq]').forEach((f) => {
+    const id = f.dataset.faq;
+    const idx = items.findIndex((x) => x.id === id);
+    f.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const q = val(f, 'question_nl');
+      const a = val(f, 'answer_nl');
+      if (!q || !a) return toast('Vraag en antwoord (NL) zijn verplicht.', true);
+      const row = { question_nl: q, answer_nl: a, question_en: orNull(val(f, 'question_en')), answer_en: orNull(val(f, 'answer_en')), published: checked(f, 'published') };
+      const { error } = id
+        ? await sb.from('faq_items').update(row).eq('id', id)
+        : await sb.from('faq_items').insert({ ...row, sort: items.reduce((m, x) => Math.max(m, x.sort), 0) + 1 });
+      if (error) return fail(error, 'Opslaan');
+      setDirty(true);
+      toast(id ? 'Opgeslagen.' : 'Vraag toegevoegd.');
+      viewFaq();
+    });
+    f.querySelector('[data-del]')?.addEventListener('click', async () => {
+      if (!confirm('Deze vraag verwijderen?')) return;
+      const { error } = await sb.from('faq_items').delete().eq('id', id!);
+      if (error) return fail(error, 'Verwijderen');
+      setDirty(true);
+      viewFaq();
+    });
+    f.querySelectorAll<HTMLButtonElement>('[data-move]').forEach((b) =>
+      b.addEventListener('click', async () => {
+        const order = [...items];
+        const j = idx + Number(b.dataset.move);
+        if (j < 0 || j >= order.length) return;
+        [order[idx], order[j]] = [order[j], order[idx]];
+        const results = await Promise.all(order.map((x, n) => sb.from('faq_items').update({ sort: n + 1 }).eq('id', x.id)));
+        const err = results.find((r) => r.error)?.error;
+        if (err) return fail(err, 'Volgorde aanpassen');
+        setDirty(true);
+        viewFaq();
       }),
     );
   });

@@ -1,0 +1,39 @@
+---
+import Base from '../layouts/Base.astro';
+import { t, routes, type Lang } from '../i18n/ui';
+import { loadCatalog } from '../data/catalog';
+
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const other: Lang = lang === 'nl' ? 'en' : 'nl';
+const { faq } = await loadCatalog();
+const paras = (s: string) => s.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
+---
+<Base lang={lang} title={t(lang, 'faq.title')} alternate={routes.faq[other]}>
+  <section class="wrap section fq">
+    <h1 class="h1">{t(lang, 'faq.title')}</h1>
+    {faq.length ? (
+      <div class="acc fq-list">
+        {faq.map((item) => (
+          <details>
+            <summary>{item.q[lang]}</summary>
+            {paras(item.a[lang]).map((p) => <p>{p}</p>)}
+          </details>
+        ))}
+      </div>
+    ) : (
+      <p class="lead">{t(lang, 'page.soon')}</p>
+    )}
+    <div class="fq-more">
+      <span>{t(lang, 'faq.more')}</span>
+      <a class="link-line" href={routes.contact[lang]}>{t(lang, 'faq.contact')}</a>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .fq { display: flex; flex-direction: column; gap: var(--s5); max-width: 860px; }
+  .fq-list summary { font-size: 15px; letter-spacing: 0.02em; text-transform: none; font-weight: 500; padding: 8px 0; gap: 16px; }
+  .fq-list p { white-space: pre-line; }
+  .fq-more { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: baseline; font-size: 15px; }
+</style>
