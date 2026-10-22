@@ -1,4 +1,5 @@
 ---
+import { rich } from '../lib/rich';
 import Base from '../layouts/Base.astro';
 import ProductCard from '../components/ProductCard.astro';
 import { t, routes, type Lang } from '../i18n/ui';
@@ -26,7 +27,7 @@ const { lang, title, intro, crumbs, items, alternate } = Astro.props;
       ))}
     </nav>
     <h1 class="h1">{title}</h1>
-    {intro && <p class="lead">{intro}</p>}
+    {intro && <p class="lead" set:html={rich(intro)} />}
   </section>
 
   <section class="wrap listing" data-listing>

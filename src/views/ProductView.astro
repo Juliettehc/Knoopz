@@ -1,4 +1,5 @@
 ---
+import { rich } from '../lib/rich';
 import Base from '../layouts/Base.astro';
 import ProductCard from '../components/ProductCard.astro';
 import { t, formatPrice, routes, dropPath, productPath, type Lang } from '../i18n/ui';
@@ -92,21 +93,21 @@ const shipCosts = sh.nl === null ? '' : [
         {t(lang, 'product.add')}
       </button>
       <button type="button" class="btn btn-block" disabled data-sold-show hidden={!sold}>{soldLabel}</button>
-      {p.description[lang] && <p class="desc">{p.description[lang]}</p>}
+      {p.description[lang] && <p class="desc" set:html={rich(p.description[lang])} />}
       {shipShort && <span class="muted small">{shipShort}</span>}
       <div class="acc">
         <details open>
           <summary>{t(lang, 'product.details')}</summary>
-          <p>{text(p.details[lang], nl ? '[Materiaal, pasvorm, verzorging.]' : '[Material, fit, care.]')}</p>
+          <p set:html={rich(text(p.details[lang], nl ? '[Materiaal, pasvorm, verzorging.]' : '[Material, fit, care.]'))} />
         </details>
         <details>
           <summary>{t(lang, 'product.button')}</summary>
-          <p>{text(p.buttonStory[lang], nl ? '[Herkomst en verhaal van de vintage knoop op deze pet.]' : '[Origin and story of the vintage button on this cap.]')}</p>
+          <p set:html={rich(text(p.buttonStory[lang], nl ? '[Herkomst en verhaal van de vintage knoop op deze pet.]' : '[Origin and story of the vintage button on this cap.]'))} />
         </details>
         <details>
           <summary>{t(lang, 'product.shipping')}</summary>
-          {shipText && <p>{shipText}</p>}
-          {shipCosts && <p>{shipCosts}</p>}
+          {shipText && <p set:html={rich(shipText)} />}
+          {shipCosts && <p set:html={rich(shipCosts)} />}
           <p><a href={routes.shipping[lang]}>{t(lang, 'ship.more')}</a></p>
         </details>
       </div>

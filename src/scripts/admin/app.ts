@@ -1149,7 +1149,7 @@ async function viewSitePage(cfg: SitePageCfg) {
 
   app.innerHTML = `
     <h1>${esc(cfg.title)}</h1>
-    <p class="a-note">${esc(cfg.note)} ${allSlots.length ? "Foto's worden automatisch verkleind. " : ''}Klik daarna op <strong>Wijzigingen publiceren</strong>.</p>
+    <p class="a-note">${esc(cfg.note)} Dikgedrukt: zet twee sterretjes om een woord, bijv. <strong>**14 dagen**</strong>. ${allSlots.length ? "Foto's worden automatisch verkleind. " : ''}Klik daarna op <strong>Wijzigingen publiceren</strong>.</p>
     ${msgs}
     <form data-texts novalidate>
       ${cfg.sections
@@ -1265,7 +1265,7 @@ async function viewFaq() {
 
   app.innerHTML = `
     <h1>FAQ</h1>
-    <p class="a-note">Veelgestelde vragen voor de pagina FAQ. Engels leeg = de Nederlandse tekst wordt gebruikt. Klik na het aanpassen op <strong>Wijzigingen publiceren</strong>.</p>
+    <p class="a-note">Veelgestelde vragen voor de pagina FAQ. Dikgedrukt in een antwoord: zet twee sterretjes om een woord, bijv. <strong>**gratis**</strong>. Engels leeg = de Nederlandse tekst wordt gebruikt. Klik na het aanpassen op <strong>Wijzigingen publiceren</strong>.</p>
     ${items.length ? items.map((it, i) => form(it, i)).join('') : '<p class="a-note">Nog geen vragen.</p>'}
     <h2>Nieuwe vraag</h2>
     ${form(null, items.length)}`;

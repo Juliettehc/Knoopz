@@ -1,4 +1,5 @@
 ---
+import { rich } from '../lib/rich';
 import Base from '../layouts/Base.astro';
 import { t, routes, type Lang } from '../i18n/ui';
 import { loadCatalog } from '../data/catalog';
@@ -23,7 +24,7 @@ const empty = !intro && blocks.length === 0 && !hero;
       <div class="ab-head-text">
         <span class="eyebrow">KNOOPZ</span>
         <h1 class="h1">{title}</h1>
-        {intro ? paras(intro).map((p) => <p class="lead ab-intro">{p}</p>) : empty && <p class="lead">{t(lang, 'page.soon')}</p>}
+        {intro ? paras(intro).map((p) => <p class="lead ab-intro" set:html={rich(p)} />) : empty && <p class="lead">{t(lang, 'page.soon')}</p>}
       </div>
       {hero && <img class="ab-head-photo" src={hero.url} alt={hero.alt[lang]} fetchpriority="high" decoding="async" />}
     </header>
@@ -32,8 +33,8 @@ const empty = !intro && blocks.length === 0 && !hero;
       <div class:list={['ab-block', { 'ab-flip': i % 2 === 1, 'ab-noimg': !b.img }]}>
         {b.img && <img class="ab-img" src={b.img.url} alt={b.img.alt[lang]} loading="lazy" decoding="async" />}
         <div class="ab-text">
-          {b.title && <h2 class="h2">{b.title}</h2>}
-          {b.text.map((p) => <p>{p}</p>)}
+          {b.title && <h2 class="h2" set:html={rich(b.title)} />}
+          {b.text.map((p) => <p set:html={rich(p)} />)}
         </div>
       </div>
     ))}

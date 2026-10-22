@@ -1,4 +1,5 @@
 ---
+import { rich } from '../lib/rich';
 import Base from '../layouts/Base.astro';
 import { t, routes, formatPrice, type Lang } from '../i18n/ui';
 import { loadCatalog } from '../data/catalog';
@@ -17,7 +18,7 @@ const cost = (c: number | null) => (c === 0 ? t(lang, 'ship.freeAlways') : forma
 <Base lang={lang} title={title} alternate={routes.shipping[other]}>
   <section class="wrap section sh">
     <h1 class="h1">{title}</h1>
-    {intro && paras(intro).map((p) => <p class="lead">{p}</p>)}
+    {intro && paras(intro).map((p) => <p class="lead" set:html={rich(p)} />)}
 
     {sh.nl !== null && (
       <div class="sh-costs">
@@ -33,8 +34,8 @@ const cost = (c: number | null) => (c === 0 ? t(lang, 'ship.freeAlways') : forma
     {blocks.length ? (
       blocks.map((b) => (
         <div class="sh-block">
-          {b.title && <h2 class="h3">{b.title}</h2>}
-          {b.text.map((p) => <p>{p}</p>)}
+          {b.title && <h2 class="h3" set:html={rich(b.title)} />}
+          {b.text.map((p) => <p set:html={rich(p)} />)}
         </div>
       ))
     ) : (

@@ -1,4 +1,5 @@
 ---
+import { rich } from '../lib/rich';
 import Base from '../layouts/Base.astro';
 import { t, routes, type Lang } from '../i18n/ui';
 import { loadCatalog } from '../data/catalog';
@@ -26,7 +27,7 @@ const labels = {
   <section class="wrap section ct" data-contact data-lang={lang}>
     <div class="ct-info">
       <h1 class="h1">{title}</h1>
-      {intro.split(/\n\s*\n/).map((p) => <p class="lead">{p}</p>)}
+      {intro.split(/\n\s*\n/).map((p) => <p class="lead" set:html={rich(p)} />)}
 
       {email && (
         <div class="ct-item">

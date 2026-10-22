@@ -1,4 +1,5 @@
 ---
+import { rich } from '../lib/rich';
 // Lange tekstpagina (privacy, voorwaarden). Tekst komt uit het beheer.
 // Opmaak in de tekst: "## " aan het begin van een regel = tussenkop, "- " = opsomming, witregel = nieuwe alinea.
 import Base from '../layouts/Base.astro';
@@ -45,7 +46,7 @@ for (const chunk of tx(`${prefix}_text`).split(/\n\s*\n/)) {
     {updated && <p class="muted lg-date">{updated}</p>}
     {blocks.length ? (
       blocks.map((b) =>
-        b.type === 'h' ? <h2 class="h3">{b.text}</h2> : b.type === 'ul' ? <ul>{b.items!.map((i) => <li>{i}</li>)}</ul> : <p>{b.text}</p>,
+        b.type === 'h' ? <h2 class="h3" set:html={rich(b.text)} /> : b.type === 'ul' ? <ul>{b.items!.map((i) => <li set:html={rich(i)} />)}</ul> : <p set:html={rich(b.text)} />,
       )
     ) : (
       <p class="lead">{t(lang, 'page.soon')}</p>

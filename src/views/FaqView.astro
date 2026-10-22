@@ -1,4 +1,5 @@
 ---
+import { rich } from '../lib/rich';
 import Base from '../layouts/Base.astro';
 import { t, routes, type Lang } from '../i18n/ui';
 import { loadCatalog } from '../data/catalog';
@@ -17,7 +18,7 @@ const paras = (s: string) => s.split(/\n\s*\n/).map((p) => p.trim()).filter(Bool
         {faq.map((item) => (
           <details>
             <summary>{item.q[lang]}</summary>
-            {paras(item.a[lang]).map((p) => <p>{p}</p>)}
+            {paras(item.a[lang]).map((p) => <p set:html={rich(p)} />)}
           </details>
         ))}
       </div>
