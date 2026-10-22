@@ -292,7 +292,7 @@ function bindPasswordForm(form: HTMLFormElement, done: () => void) {
 }
 
 // ---------- producten: overzicht ----------
-type Drop = { id: string; slug: string; name_nl: string; name_en: string | null; intro_nl: string | null; intro_en: string | null; sort: number; published: boolean };
+type Drop = { id: string; slug: string; name_nl: string; name_en: string | null; intro_nl: string | null; intro_en: string | null; sort: number; published: boolean; image_path?: string | null };
 
 async function loadDrops(): Promise<Drop[]> {
   const { data, error } = await sb.from('drops').select('*').order('sort').order('created_at');
@@ -667,11 +667,62 @@ async function viewDrops() {
       </div>
     </form>`;
 
+  const hasCol = drops.length === 0 || 'image_path' in drops[0];
+  const photo = (d: Drop) =>
+    !hasCol
+      ? '<p class="a-error">Een foto per drop kan pas na het SQL-script <strong>010_drop_fotos.sql</strong> in Supabase.</p>'
+      : `
+    <div class="a-card a-slot a-drop-photo" data-drop-photo="${esc(d.id)}">
+      <div class="a-slot-img" style="aspect-ratio:4/3;max-width:320px">${d.image_path ? `<img src="${esc(publicImageUrl(d.image_path))}" alt="" />` : '<span>Nog geen foto</span>'}</div>
+      <div class="a-slot-info">
+        <strong>Foto in het Shop-menu</strong>
+        <small class="muted">Liggend werkt het best (4:3). Zonder eigen foto toont het menu de hoofdfoto van het eerste product in deze drop.</small>
+        <div class="a-buttons">
+          <label class="btn btn-outline" style="cursor:pointer">${d.image_path ? 'Vervangen' : 'Foto kiezen'}<input type="file" accept="image/jpeg,image/png,image/webp" hidden data-file /></label>
+          ${d.image_path ? '<button type="button" class="a-link" data-remove>Verwijderen</button>' : ''}
+        </div>
+        <p class="a-note" data-progress></p>
+      </div>
+    </div>`;
+
   app.innerHTML = `
     <h1>Drops</h1>
-    ${drops.map((d) => `<h2>${esc(d.name_nl)}</h2>${form(d)}`).join('')}
+    ${drops.map((d) => `<h2>${esc(d.name_nl)}</h2>${photo(d)}${form(d)}`).join('')}
     <h2>Nieuwe drop</h2>
     ${form(null)}`;
+
+  app.querySelectorAll<HTMLElement>('[data-drop-photo]').forEach((card) => {
+    const d = drops.find((x) => x.id === card.dataset.dropPhoto)!;
+    const progress = card.querySelector<HTMLElement>('[data-progress]')!;
+    card.querySelector<HTMLInputElement>('[data-file]')!.addEventListener('change', async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      progress.textContent = 'Bezig met uploaden…';
+      try {
+        const blob = await resizeImage(file, 1200, 0.86);
+        const path = `drops/${d.id}-${crypto.randomUUID()}.jpg`;
+        const up = await sb.storage.from(IMAGE_BUCKET).upload(path, blob, { contentType: 'image/jpeg', cacheControl: '31536000' });
+        if (up.error) throw up.error;
+        const { error } = await sb.from('drops').update({ image_path: path }).eq('id', d.id);
+        if (error) throw error;
+        if (d.image_path) await sb.storage.from(IMAGE_BUCKET).remove([d.image_path]);
+        setDirty(true);
+        toast('Foto opgeslagen.');
+        viewDrops();
+      } catch (err) {
+        progress.textContent = '';
+        fail(err, 'Uploaden');
+      }
+    });
+    card.querySelector('[data-remove]')?.addEventListener('click', async () => {
+      if (!confirm('Deze foto verwijderen?')) return;
+      const { error } = await sb.from('drops').update({ image_path: null }).eq('id', d.id);
+      if (error) return fail(error, 'Verwijderen');
+      await sb.storage.from(IMAGE_BUCKET).remove([d.image_path!]);
+      setDirty(true);
+      viewDrops();
+    });
+  });
 
   app.querySelectorAll<HTMLFormElement>('[data-drop-form]').forEach((f) => {
     const id = f.dataset.id;

@@ -18,6 +18,7 @@ export interface Drop {
   slug: string;
   name: T;
   intro: T;
+  image: string | null; // eigen foto voor het Shop-menu (optioneel)
 }
 
 export interface Product {
@@ -77,7 +78,7 @@ async function fromSupabase(): Promise<Catalog> {
   const site: Record<string, SiteImage> = Object.fromEntries(
     siteRows.map((r) => [r.key, { url: publicImageUrl(r.path), alt: t(r.alt_nl, r.alt_en), link: r.link || null }]),
   );
-  const drops: Drop[] = dropRows.map((d) => ({ id: d.id, slug: d.slug, name: t(d.name_nl, d.name_en), intro: t(d.intro_nl, d.intro_en) }));
+  const drops: Drop[] = dropRows.map((d) => ({ id: d.id, slug: d.slug, name: t(d.name_nl, d.name_en), intro: t(d.intro_nl, d.intro_en), image: d.image_path ? publicImageUrl(d.image_path) : null }));
   const products: Product[] = productRows.map((p) => {
     const variants: { status: string; stock: number }[] = p.product_variants ?? [];
     const available = variants.some((v) => v.status !== 'sold' && v.stock > 0);
@@ -109,6 +110,7 @@ function sample(): Catalog {
     slug: 'drop-01',
     name: { nl: 'Drop 01', en: 'Drop 01' },
     intro: { nl: '[Korte tekst over deze drop]', en: '[Short text about this drop]' },
+    image: null,
   };
   const sold = new Set([3, 6]);
   const products: Product[] = Array.from({ length: 8 }, (_, i) => {

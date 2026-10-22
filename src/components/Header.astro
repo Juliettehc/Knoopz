@@ -4,7 +4,9 @@ import { loadCatalog } from '../data/catalog';
 
 interface Props { lang: Lang; alternate: string }
 const { lang, alternate } = Astro.props;
-const { drops } = await loadCatalog();
+const { drops, products } = await loadCatalog();
+// Foto in het Shop-menu: eigen dropfoto, anders de hoofdfoto van het eerste product in die drop.
+const dropImage = (id: string, own: string | null) => own ?? products.find((p) => p.dropId === id && p.images.length)?.images[0].small ?? null;
 const nlHref = lang === 'nl' ? Astro.url.pathname : alternate;
 const enHref = lang === 'en' ? Astro.url.pathname : alternate;
 ---
@@ -28,7 +30,9 @@ const enHref = lang === 'en' ? Astro.url.pathname : alternate;
               </div>
               {drops.map((d) => (
                 <a class="mega-tile" href={dropPath(lang, d.slug)}>
-                  <div class="ph" style="aspect-ratio: 4 / 3"><span>[{d.name[lang]}]</span></div>
+                  {dropImage(d.id, d.image)
+                    ? <img class="mega-img" src={dropImage(d.id, d.image)} alt="" loading="lazy" />
+                    : <div class="ph" style="aspect-ratio: 4 / 3"><span>[{d.name[lang]}]</span></div>}
                   <span class="label">{d.name[lang]}</span>
                 </a>
               ))}
@@ -112,6 +116,7 @@ const enHref = lang === 'en' ? Astro.url.pathname : alternate;
   .mega-col a, .mega-tile { text-decoration: none; }
   .mega-col a:hover { text-decoration: underline; text-underline-offset: 4px; }
   .mega-tile { display: flex; flex-direction: column; gap: 10px; }
+  .mega-img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; display: block; background: var(--surface, #f2f0ec); }
   .mega-backdrop { position: fixed; inset: 0; top: var(--header-h); background: rgba(20, 20, 20, 0.25); z-index: 39; }
 
   .mobile-menu { position: fixed; inset: 0; z-index: 60; background: var(--bg); display: flex; flex-direction: column; overflow-y: auto; }
