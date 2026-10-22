@@ -1,0 +1,63 @@
+---
+// Lange tekstpagina (privacy, voorwaarden). Tekst komt uit het beheer.
+// Opmaak in de tekst: "## " aan het begin van een regel = tussenkop, "- " = opsomming, witregel = nieuwe alinea.
+import Base from '../layouts/Base.astro';
+import { t, routes, type Lang, type RouteKey } from '../i18n/ui';
+import { loadCatalog } from '../data/catalog';
+
+interface Props { lang: Lang; page: RouteKey; prefix: string; fallbackTitle: string }
+const { lang, page, prefix, fallbackTitle } = Astro.props;
+const other: Lang = lang === 'nl' ? 'en' : 'nl';
+const { texts } = await loadCatalog();
+const tx = (key: string) => texts[key]?.[lang] ?? '';
+const title = tx(`${prefix}_title`) || fallbackTitle;
+const updated = tx(`${prefix}_updated`);
+type Block = { type: 'h' | 'p' | 'ul'; text?: string; items?: string[] };
+const blocks: Block[] = [];
+for (const chunk of tx(`${prefix}_text`).split(/\n\s*\n/)) {
+  const lines = chunk.split('\n').map((l) => l.trim()).filter(Boolean);
+  let para: string[] = [];
+  let list: string[] = [];
+  const flush = () => {
+    if (para.length) blocks.push({ type: 'p', text: para.join(' ') });
+    if (list.length) blocks.push({ type: 'ul', items: list });
+    para = [];
+    list = [];
+  };
+  for (const l of lines) {
+    if (l.startsWith('## ')) {
+      flush();
+      blocks.push({ type: 'h', text: l.slice(3) });
+    } else if (/^[-•*] /.test(l)) {
+      if (para.length) flush();
+      list.push(l.slice(2));
+    } else {
+      if (list.length) flush();
+      para.push(l);
+    }
+  }
+  flush();
+}
+---
+<Base lang={lang} title={title} alternate={routes[page][other]}>
+  <article class="wrap section lg">
+    <h1 class="h2">{title}</h1>
+    {updated && <p class="muted lg-date">{updated}</p>}
+    {blocks.length ? (
+      blocks.map((b) =>
+        b.type === 'h' ? <h2 class="h3">{b.text}</h2> : b.type === 'ul' ? <ul>{b.items!.map((i) => <li>{i}</li>)}</ul> : <p>{b.text}</p>,
+      )
+    ) : (
+      <p class="lead">{t(lang, 'page.soon')}</p>
+    )}
+  </article>
+</Base>
+
+<style>
+  .lg { max-width: 780px; display: flex; flex-direction: column; gap: 16px; }
+  .lg h1 { margin-bottom: 4px; }
+  .lg-date { margin: 0 0 16px; font-size: 14px; }
+  .lg h2 { margin-top: 24px; font-size: clamp(22px, 2.2vw, 28px); }
+  .lg p, .lg li { margin: 0; font-size: 16px; line-height: 1.75; color: var(--muted); }
+  .lg ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
+</style>

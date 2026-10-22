@@ -40,6 +40,8 @@ body.admin { background: var(--bg); }
   font: inherit; font-size: 15px; padding: 10px 12px; border: 1px solid #cfc8bc; background: #fff; color: var(--ink); min-height: 44px; border-radius: 0;
 }
 .a-field textarea { min-height: 96px; resize: vertical; }
+.a-field textarea[name$='_text_nl'], .a-field textarea[name$='_text_en'] { min-height: 160px; }
+.a-field textarea[name='privacy_text_nl'], .a-field textarea[name='privacy_text_en'], .a-field textarea[name='terms_text_nl'], .a-field textarea[name='terms_text_en'] { min-height: 420px; }
 .a-check { display: flex; align-items: center; gap: 10px; font-size: 14px; min-height: 44px; }
 .a-check input { width: 18px; height: 18px; }
 .a-buttons { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-top: 8px; }

@@ -144,6 +144,8 @@ async function route() {
   if (section === 'contact') return viewSitePage(CONTACT_CFG);
   if (section === 'faq') return viewFaq();
   if (section === 'verzending') return viewSitePage(SHIP_CFG);
+  if (section === 'privacy') return viewSitePage(PRIVACY_CFG);
+  if (section === 'voorwaarden') return viewSitePage(TERMS_CFG);
   if (section === 'instellingen') return viewSettings();
   return viewProducts();
 }
@@ -1052,6 +1054,25 @@ const SHIP_CFG: SitePageCfg = {
     },
   ],
 };
+
+const legalCfg = (route: string, prefix: string, title: string, ph: string): SitePageCfg => ({
+  route,
+  title,
+  note: 'Opmaak: begin een regel met "## " voor een tussenkop en met "- " voor een opsommingsteken. Laat een witregel tussen alinea\'s.',
+  sql: '009_verzending_retour.sql',
+  sections: [
+    {
+      heading: title,
+      texts: [
+        { key: `${prefix}_title`, label: 'Titel', ph },
+        { key: `${prefix}_updated`, label: 'Datum (bijv. "Laatst bijgewerkt: 1 november 2026")' },
+        { key: `${prefix}_text`, label: 'Tekst', area: true },
+      ],
+    },
+  ],
+});
+const PRIVACY_CFG = legalCfg('privacy', 'privacy', 'Privacyverklaring', 'Privacyverklaring');
+const TERMS_CFG = legalCfg('voorwaarden', 'terms', 'Algemene voorwaarden', 'Algemene voorwaarden');
 
 async function messagesHtml(): Promise<string> {
   const { data, error } = await sb.from('contact_messages').select('*').order('created_at', { ascending: false }).limit(200);
