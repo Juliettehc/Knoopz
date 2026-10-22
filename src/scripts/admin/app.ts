@@ -947,7 +947,7 @@ const ABOUT_CFG: SitePageCfg = {
         { key: 'about_title', label: 'Titel', ph: 'Over KNOOPZ' },
         { key: 'about_intro', label: 'Inleiding (1 à 2 zinnen)', area: true },
       ],
-      slots: [{ key: 'about_hero', label: 'Grote foto bovenaan', hint: 'Liggend, 3000 × 1688 px (16:9). Optioneel', max: 2560, ratio: '16 / 9' }],
+      slots: [{ key: 'about_hero', label: 'Foto naast de titel', hint: 'Staand, 2000 × 2500 px (4:5). Optioneel', max: 1600, ratio: '4 / 5' }],
     },
     ...[1, 2, 3].map((n) => ({
       heading: `Blok ${n}`,

@@ -18,16 +18,14 @@ const hero = site.about_hero;
 const empty = !intro && blocks.length === 0 && !hero;
 ---
 <Base lang={lang} title={title} alternate={routes.about[other]}>
-  {hero && (
-    <div class="ab-hero">
-      <img src={hero.url} alt={hero.alt[lang]} fetchpriority="high" decoding="async" />
-    </div>
-  )}
   <section class="wrap section ab">
-    <header class="ab-head">
-      <span class="eyebrow">KNOOPZ</span>
-      <h1 class="h1">{title}</h1>
-      {intro ? paras(intro).map((p) => <p class="lead ab-intro">{p}</p>) : empty && <p class="lead">{t(lang, 'page.soon')}</p>}
+    <header class:list={['ab-head', { 'ab-head-img': hero }]}>
+      <div class="ab-head-text">
+        <span class="eyebrow">KNOOPZ</span>
+        <h1 class="h1">{title}</h1>
+        {intro ? paras(intro).map((p) => <p class="lead ab-intro">{p}</p>) : empty && <p class="lead">{t(lang, 'page.soon')}</p>}
+      </div>
+      {hero && <img class="ab-head-photo" src={hero.url} alt={hero.alt[lang]} fetchpriority="high" decoding="async" />}
     </header>
 
     {blocks.map((b, i) => (
@@ -45,10 +43,10 @@ const empty = !intro && blocks.length === 0 && !hero;
 </Base>
 
 <style>
-  .ab-hero { aspect-ratio: 16 / 7; max-height: 640px; width: 100%; overflow: hidden; background: var(--surface); }
-  .ab-hero img { width: 100%; height: 100%; object-fit: cover; }
   .ab { display: flex; flex-direction: column; gap: var(--s6); }
-  .ab-head { display: flex; flex-direction: column; gap: 20px; max-width: 760px; }
+  .ab-head-text { display: flex; flex-direction: column; gap: 20px; max-width: 760px; }
+  .ab-head-img { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s5); align-items: center; }
+  .ab-head-photo { width: 100%; aspect-ratio: 4 / 5; object-fit: cover; background: var(--surface); }
   .ab-intro { max-width: 640px; font-size: 18px; }
   .ab-block { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s5); align-items: center; }
   .ab-flip .ab-img { order: 2; }
@@ -58,7 +56,7 @@ const empty = !intro && blocks.length === 0 && !hero;
   .ab-text p { margin: 0; font-size: 16px; line-height: 1.75; color: var(--muted); }
   .ab-cta { align-self: flex-start; }
   @media (max-width: 760px) {
-    .ab-hero { aspect-ratio: 4 / 5; max-height: 70vh; }
+    .ab-head-img { grid-template-columns: 1fr; gap: 24px; }
     .ab-block { grid-template-columns: 1fr; gap: 24px; }
     .ab-flip .ab-img { order: 0; }
     .ab-cta { align-self: stretch; }
