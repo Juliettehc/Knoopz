@@ -72,6 +72,8 @@ body.admin { background: var(--bg); }
 .a-slot-img img { width: 100%; height: 100%; object-fit: cover; }
 .a-slot-info { display: flex; flex-direction: column; gap: 8px; }
 .a-slot-info .a-buttons { margin-top: 4px; }
+.a-savebar { position: sticky; bottom: 0; z-index: 5; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-top: 24px; padding: 14px 16px; background: var(--bg); border-top: 1px solid var(--line); }
+.a-savebar .btn { min-height: 44px; padding: 0 22px; }
 .a-cell-actions .a-link { min-height: 32px; margin-left: 8px; }
 
 .a-drop { border: 2px dashed #cfc8bc; padding: 24px; text-align: center; font-size: 14px; color: var(--muted); background: #fff; }

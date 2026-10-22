@@ -137,7 +137,8 @@ async function route() {
   if (section === 'bestellingen') return viewOrders();
   if (section === 'bestelling' && id) return viewOrder(id);
   if (section === 'kortingscodes') return viewCodes();
-  if (section === 'homepage') return viewHomepage();
+  if (section === 'homepage') return viewSitePage(HOME_CFG);
+  if (section === 'over') return viewSitePage(ABOUT_CFG);
   if (section === 'instellingen') return viewSettings();
   return viewProducts();
 }
@@ -896,25 +897,87 @@ async function viewOrder(id: string) {
   });
 }
 
-// ---------- homepage-foto's ----------
-const SITE_SLOTS: { key: string; label: string; hint: string; max: number; ratio: string }[] = [
-  { key: 'hero_desktop', label: 'Grote foto bovenaan · computer', hint: 'Liggend, 3000 × 1688 px (16:9)', max: 2560, ratio: '16 / 9' },
-  { key: 'hero_mobile', label: 'Grote foto bovenaan · telefoon', hint: 'Staand, 2000 × 2500 px (4:5). Leeg = de computerfoto wordt gebruikt', max: 1600, ratio: '4 / 5' },
-  { key: 'story', label: 'Foto bij het verhaal', hint: 'Vierkant, bijv. 2000 × 2000 px (detail van een knoop)', max: 1600, ratio: '1 / 1' },
-  ...Array.from({ length: 6 }, (_, i) => ({ key: `insta_${i + 1}`, label: `Instagram-tegel ${i + 1}`, hint: 'Vierkant, bijv. 1080 × 1080 px', max: 800, ratio: '1 / 1' })),
-];
+// ---------- homepage en Over KNOOPZ: teksten en foto's ----------
+type Slot = { key: string; label: string; hint: string; max: number; ratio: string; link?: boolean };
+type TextField = { key: string; label: string; ph?: string; area?: boolean };
+type SiteSection = { heading: string; texts?: TextField[]; slots?: Slot[]; cols?: 2 | 3 };
+type SitePageCfg = { route: string; title: string; note: string; sql: string; sections: SiteSection[] };
 
-async function viewHomepage() {
+const HOME_CFG: SitePageCfg = {
+  route: 'homepage',
+  title: 'Homepage',
+  note: "Pas hier de teksten en foto's van de homepage aan.",
+  sql: '004_homepage_fotos.sql en 005_homepage_teksten.sql',
+  sections: [
+    {
+      heading: 'Teksten',
+      texts: [
+        { key: 'hero_title', label: 'Grote titel bovenaan', ph: 'Statement pieces met vintage knopen' },
+        { key: 'story_title', label: 'Kop bij het verhaal', ph: 'bijv. Elke knoop heeft een verhaal' },
+        { key: 'story_text', label: 'Tekst bij het verhaal (2 à 3 zinnen)', area: true },
+        { key: 'insta_title', label: 'Kop van het Instagram-blok', ph: 'bijv. Gespot met KNOOPZ' },
+      ],
+    },
+    {
+      heading: 'Campagnefoto',
+      slots: [
+        { key: 'hero_desktop', label: 'Grote foto bovenaan · computer', hint: 'Liggend, 3000 × 1688 px (16:9)', max: 2560, ratio: '16 / 9' },
+        { key: 'hero_mobile', label: 'Grote foto bovenaan · telefoon', hint: 'Staand, 2000 × 2500 px (4:5). Leeg = de computerfoto wordt gebruikt', max: 1600, ratio: '4 / 5' },
+      ],
+    },
+    { heading: 'Verhaal', slots: [{ key: 'story', label: 'Foto bij het verhaal', hint: 'Vierkant, bijv. 2000 × 2000 px (detail van een knoop)', max: 1600, ratio: '1 / 1' }] },
+    {
+      heading: 'Instagram-blok',
+      cols: 3,
+      slots: Array.from({ length: 6 }, (_, i) => ({ key: `insta_${i + 1}`, label: `Instagram-tegel ${i + 1}`, hint: 'Vierkant, bijv. 1080 × 1080 px', max: 800, ratio: '1 / 1', link: true })),
+    },
+  ],
+};
+
+const ABOUT_CFG: SitePageCfg = {
+  route: 'over',
+  title: 'Over KNOOPZ',
+  note: 'Pas hier de tekst en foto\'s van de pagina Over KNOOPZ aan. Een blok zonder kop, tekst en foto wordt niet getoond. Laat een witregel tussen alinea\'s.',
+  sql: '006_over_knoopz.sql',
+  sections: [
+    {
+      heading: 'Bovenaan',
+      texts: [
+        { key: 'about_title', label: 'Titel', ph: 'Over KNOOPZ' },
+        { key: 'about_intro', label: 'Inleiding (1 à 2 zinnen)', area: true },
+      ],
+      slots: [{ key: 'about_hero', label: 'Grote foto bovenaan', hint: 'Liggend, 3000 × 1688 px (16:9). Optioneel', max: 2560, ratio: '16 / 9' }],
+    },
+    ...[1, 2, 3].map((n) => ({
+      heading: `Blok ${n}`,
+      texts: [
+        { key: `about_${n}_title`, label: `Kop blok ${n}` },
+        { key: `about_${n}_text`, label: `Tekst blok ${n}`, area: true },
+      ],
+      slots: [{ key: `about_${n}`, label: `Foto blok ${n}`, hint: 'Staand, 2000 × 2500 px (4:5)', max: 1600, ratio: '4 / 5' }],
+    })),
+  ],
+};
+
+async function viewSitePage(cfg: SitePageCfg) {
   app.innerHTML = '<p class="muted">Laden…</p>';
-  const { data, error } = await sb.from('site_images').select('*');
-  if (error) {
-    app.innerHTML = `<h1>Homepage</h1><p class="a-error">De homepage-foto's zijn nog niet ingesteld in de database. Voer eerst het SQL-script <strong>004_homepage_fotos.sql</strong> uit in Supabase.</p>`;
+  const [imgs, texts] = await Promise.all([sb.from('site_images').select('*'), sb.from('site_texts').select('*')]);
+  if (imgs.error || texts.error) {
+    app.innerHTML = `<h1>${esc(cfg.title)}</h1><p class="a-error">Dit onderdeel is nog niet ingesteld in de database. Voer eerst het SQL-script <strong>${esc(cfg.sql)}</strong> uit in Supabase.</p>`;
     return;
   }
-  const rows = new Map((data as any[]).map((r) => [r.key, r]));
-  const slot = (s: (typeof SITE_SLOTS)[number]) => {
+  const rows = new Map((imgs.data as any[]).map((r) => [r.key, r]));
+  const tmap = new Map((texts.data as any[]).map((r) => [r.key, r]));
+
+  const field = (f: TextField, lang: 'nl' | 'en') => {
+    const v = esc(tmap.get(f.key)?.[lang]);
+    const ph = esc(lang === 'nl' ? f.ph ?? '' : '');
+    return `<label class="a-field"><span>${esc(f.label)} (${lang.toUpperCase()})</span>${
+      f.area ? `<textarea name="${f.key}_${lang}" placeholder="${ph}">${v}</textarea>` : `<input name="${f.key}_${lang}" value="${v}" placeholder="${ph}" />`
+    }</label>`;
+  };
+  const slot = (s: Slot) => {
     const r = rows.get(s.key);
-    const isInsta = s.key.startsWith('insta_');
     return `
       <div class="a-card a-slot" data-key="${s.key}">
         <div class="a-slot-img" style="aspect-ratio:${s.ratio}">${r ? `<img src="${esc(publicImageUrl(r.path))}" alt="" />` : '<span>Nog geen foto</span>'}</div>
@@ -929,53 +992,34 @@ async function viewHomepage() {
             r
               ? `<label class="a-field"><span>Beschrijving (NL)</span><input data-f="alt_nl" value="${esc(r.alt_nl)}" placeholder="Wat staat er op de foto?" /></label>
           <label class="a-field"><span>Beschrijving (EN)</span><input data-f="alt_en" value="${esc(r.alt_en)}" /></label>
-          ${isInsta ? `<label class="a-field"><span>Link (optioneel)</span><input data-f="link" type="url" value="${esc(r.link)}" placeholder="Link naar de Instagram-post; leeg = @knoopz.wear" /></label>` : ''}`
+          ${s.link ? `<label class="a-field"><span>Link (optioneel)</span><input data-f="link" type="url" value="${esc(r.link)}" placeholder="Link naar de Instagram-post; leeg = @knoopz.wear" /></label>` : ''}`
               : ''
           }
           <p class="a-note" data-progress></p>
         </div>
       </div>`;
   };
-
-  const texts = await sb.from('site_texts').select('*');
-  const tmap = new Map(((texts.data ?? []) as any[]).map((r) => [r.key, r]));
-  const TEXTS = [
-    { key: 'hero_title', label: 'Grote titel bovenaan', ph: 'Statement pieces met vintage knopen', area: false },
-    { key: 'story_title', label: 'Kop bij het verhaal', ph: 'bijv. Elke knoop heeft een verhaal', area: false },
-    { key: 'story_text', label: 'Tekst bij het verhaal (2 à 3 zinnen)', ph: '', area: true },
-    { key: 'insta_title', label: 'Kop van het Instagram-blok', ph: 'bijv. Gespot met KNOOPZ', area: false },
-  ];
-  const field = (k: string, lang: 'nl' | 'en', label: string, ph: string, area: boolean) => {
-    const v = esc(tmap.get(k)?.[lang]);
-    return `<label class="a-field"><span>${label} (${lang.toUpperCase()})</span>${
-      area ? `<textarea name="${k}_${lang}" placeholder="${esc(ph)}">${v}</textarea>` : `<input name="${k}_${lang}" value="${v}" placeholder="${esc(lang === 'nl' ? ph : '')}" />`
-    }</label>`;
-  };
+  const allTexts = cfg.sections.flatMap((s) => s.texts ?? []);
+  const allSlots = cfg.sections.flatMap((s) => s.slots ?? []);
 
   app.innerHTML = `
-    <h1>Homepage</h1>
-    <p class="a-note">Pas hier de teksten en foto's van de homepage aan. Foto's worden automatisch verkleind. Klik daarna op <strong>Wijzigingen publiceren</strong>.</p>
-    <h2>Teksten</h2>
-    ${
-      texts.error
-        ? `<p class="a-error">Voer eerst het SQL-script <strong>005_homepage_teksten.sql</strong> uit in Supabase om de teksten te kunnen aanpassen.</p>`
-        : `<form class="a-form a-card" data-texts novalidate>
-      ${TEXTS.map((x) => `<div class="a-row">${field(x.key, 'nl', x.label, x.ph, x.area)}${field(x.key, 'en', x.label, '', x.area)}</div>`).join('')}
-      <p class="a-note">Leeg = de standaardtekst blijft staan. Engels leeg = de Nederlandse tekst wordt gebruikt.</p>
-      <div class="a-buttons"><button class="btn btn-dark" type="submit">Teksten opslaan</button></div>
-    </form>`
-    }
-    <h2>Campagnefoto</h2>
-    <div class="a-slots a-slots-2">${SITE_SLOTS.slice(0, 2).map(slot).join('')}</div>
-    <h2>Verhaal</h2>
-    <div class="a-slots a-slots-2">${slot(SITE_SLOTS[2])}</div>
-    <h2>Instagram-blok</h2>
-    <div class="a-slots a-slots-3">${SITE_SLOTS.slice(3).map(slot).join('')}</div>`;
+    <h1>${esc(cfg.title)}</h1>
+    <p class="a-note">${esc(cfg.note)} Foto's worden automatisch verkleind. Klik daarna op <strong>Wijzigingen publiceren</strong>.</p>
+    <form data-texts novalidate>
+      ${cfg.sections
+        .map(
+          (s) => `<h2>${esc(s.heading)}</h2>
+        ${s.texts?.length ? `<div class="a-form a-card">${s.texts.map((f) => `<div class="a-row">${field(f, 'nl')}${field(f, 'en')}</div>`).join('')}</div>` : ''}
+        ${s.slots?.length ? `<div class="a-slots ${s.cols === 3 ? 'a-slots-3' : 'a-slots-2'}" style="margin-top:16px">${s.slots.map(slot).join('')}</div>` : ''}`,
+        )
+        .join('')}
+      ${allTexts.length ? `<div class="a-savebar"><span class="a-note">Leeg = standaardtekst. Engels leeg = de Nederlandse tekst wordt gebruikt.</span><button class="btn btn-dark" type="submit">Teksten opslaan</button></div>` : ''}
+    </form>`;
 
-  const tform = app.querySelector<HTMLFormElement>('[data-texts]');
-  tform?.addEventListener('submit', async (e) => {
+  const tform = app.querySelector<HTMLFormElement>('[data-texts]')!;
+  tform.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const rowsT = TEXTS.map((x) => ({ key: x.key, nl: orNull(val(tform, `${x.key}_nl`)), en: orNull(val(tform, `${x.key}_en`)) }));
+    const rowsT = allTexts.map((x) => ({ key: x.key, nl: orNull(val(tform, `${x.key}_nl`)), en: orNull(val(tform, `${x.key}_en`)) }));
     const { error } = await sb.from('site_texts').upsert(rowsT);
     if (error) return fail(error, 'Teksten opslaan');
     setDirty(true);
@@ -984,7 +1028,7 @@ async function viewHomepage() {
 
   app.querySelectorAll<HTMLElement>('.a-slot').forEach((card) => {
     const key = card.dataset.key!;
-    const s = SITE_SLOTS.find((x) => x.key === key)!;
+    const s = allSlots.find((x) => x.key === key)!;
     const r = rows.get(key);
     const progress = card.querySelector<HTMLElement>('[data-progress]')!;
     card.querySelector<HTMLInputElement>('[data-file]')!.addEventListener('change', async (e) => {
@@ -1001,7 +1045,7 @@ async function viewHomepage() {
         if (r?.path) await sb.storage.from(IMAGE_BUCKET).remove([r.path]);
         setDirty(true);
         toast('Foto opgeslagen.');
-        viewHomepage();
+        viewSitePage(cfg);
       } catch (err) {
         progress.textContent = '';
         fail(err, 'Uploaden');
@@ -1013,7 +1057,7 @@ async function viewHomepage() {
       if (error) return fail(error, 'Verwijderen');
       await sb.storage.from(IMAGE_BUCKET).remove([r.path]);
       setDirty(true);
-      viewHomepage();
+      viewSitePage(cfg);
     });
     card.querySelectorAll<HTMLInputElement>('[data-f]').forEach((input) =>
       input.addEventListener('change', async () => {
