@@ -46,7 +46,7 @@ const empty = !intro && blocks.length === 0 && !hero;
 <style>
   .ab { display: flex; flex-direction: column; gap: var(--s6); }
   .ab-head-text { display: flex; flex-direction: column; gap: 20px; max-width: 760px; }
-  .ab-head-img { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s5); align-items: center; }
+  .ab-head-img { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 380px); gap: var(--s6); align-items: center; }
   .ab-head-photo { width: 100%; aspect-ratio: 4 / 5; object-fit: cover; background: var(--surface); }
   .ab-intro { max-width: 640px; font-size: 18px; }
   .ab-block { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s5); align-items: center; }
@@ -58,6 +58,7 @@ const empty = !intro && blocks.length === 0 && !hero;
   .ab-cta { align-self: flex-start; }
   @media (max-width: 760px) {
     .ab-head-img { grid-template-columns: 1fr; gap: 24px; }
+    .ab-head-photo { max-width: 320px; }
     .ab-block { grid-template-columns: 1fr; gap: 24px; }
     .ab-flip .ab-img { order: 0; }
     .ab-cta { align-self: stretch; }
