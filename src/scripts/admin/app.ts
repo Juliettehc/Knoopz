@@ -766,7 +766,7 @@ async function viewSettings() {
     <form class="a-form a-card" data-ship novalidate>
       <div class="a-row">
         <label class="a-field"><span>Verzendkosten Nederland (€)</span><input name="ship" inputmode="decimal" placeholder="bijv. 4,95" value="${esc(centsToInput(data.shipping_cents))}" /></label>
-        <label class="a-field"><span>Verzendkosten België (€)</span><input name="ship_be" inputmode="decimal" placeholder="leeg = zelfde als Nederland" value="${esc(centsToInput(data.shipping_be_cents))}" /></label>
+        <input type="hidden" name="ship_be" value="${esc(centsToInput(data.shipping_be_cents))}" /><p class="muted" style="align-self:end">Er wordt voorlopig alleen binnen Nederland verzonden.</p>
       </div>
       <div class="a-row">
         <label class="a-field"><span>Gratis verzending vanaf (€)</span><input name="free" inputmode="decimal" placeholder="leeg = nooit gratis" value="${esc(centsToInput(data.free_shipping_from_cents))}" /><small>Geldt voor het bedrag na korting</small></label>

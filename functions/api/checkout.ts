@@ -19,6 +19,8 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: E
     ['email', 'first_name', 'last_name', 'street', 'postal_code', 'city', 'country'].map((k) => [k, typeof c[k] === 'string' ? c[k].slice(0, 200) : '']),
   );
   if (body?.terms !== true) return json({ error: 'terms' }, 400);
+  // Voorlopig alleen verzending binnen Nederland
+  if (customer.country !== 'NL') return json({ error: 'country' }, 400);
   const lang = body?.lang === 'en' ? 'en' : 'nl';
   const replace = typeof body?.replace === 'string' && UUID.test(body.replace) ? body.replace : null;
   const code = typeof body?.code === 'string' && body.code.trim() ? body.code.slice(0, 40) : null;

@@ -55,7 +55,7 @@ export function initCheckout() {
   // Eerder ingevulde gegevens terugzetten (alleen in deze browser)
   try {
     const saved = JSON.parse(localStorage.getItem(DETAILS_KEY) || '{}');
-    FIELDS.forEach((k) => typeof saved[k] === 'string' && (field(k).value = saved[k]));
+    FIELDS.forEach((k) => k !== 'country' && typeof saved[k] === 'string' && (field(k).value = saved[k]));
   } catch {}
   const saveDetails = () => {
     try {

@@ -36,12 +36,9 @@ const L = Object.fromEntries(Object.entries(ui[lang]).filter(([k]) => k.startsWi
             <label class="f"><span>{t(lang, 'checkout.postal')}</span><input name="postal_code" autocomplete="postal-code" required maxlength="10" /></label>
             <label class="f"><span>{t(lang, 'checkout.city')}</span><input name="city" autocomplete="address-level2" required maxlength="100" /></label>
           </div>
-          <label class="f"><span>{t(lang, 'checkout.country')}</span>
-            <select name="country" autocomplete="country" data-country>
-              <option value="NL">{t(lang, 'checkout.NL')}</option>
-              <option value="BE">{t(lang, 'checkout.BE')}</option>
-            </select>
-          </label>
+          <!-- Voorlopig alleen verzending binnen Nederland (betalen alleen met iDEAL) -->
+          <input type="hidden" name="country" value="NL" />
+          <p class="f-note muted" style="margin:0;font-size:14px">{t(lang, 'checkout.onlyNL')}</p>
         </fieldset>
 
         <fieldset>

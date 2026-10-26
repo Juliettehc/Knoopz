@@ -23,10 +23,9 @@ const text = (v: string, fallback: string) => (v && v.trim() ? v : fallback);
 const shipShort = catalog.texts.ship_short?.[lang] ?? '';
 const shipText = catalog.texts.ship_product?.[lang] ?? '';
 const sh = catalog.shipping;
-const shipCosts = sh.nl === null ? '' : [
-  `${t(lang, 'ship.costs')}: ${t(lang, 'ship.nl')} ${sh.nl === 0 ? t(lang, 'ship.freeAlways') : formatPrice(lang, sh.nl)}`,
-  `${t(lang, 'ship.be')} ${sh.be === 0 ? t(lang, 'ship.freeAlways') : formatPrice(lang, sh.be)}`,
-].join(' · ') + (sh.freeFrom ? `. ${t(lang, 'ship.free').replace('{v}', formatPrice(lang, sh.freeFrom))}.` : '.');
+// Voorlopig alleen verzending binnen Nederland
+const shipCosts = sh.nl === null ? '' :
+  `${t(lang, 'ship.costs')}: ${t(lang, 'ship.nl')} ${sh.nl === 0 ? t(lang, 'ship.freeAlways') : formatPrice(lang, sh.nl)}` + (sh.freeFrom ? `. ${t(lang, 'ship.free').replace('{v}', formatPrice(lang, sh.freeFrom))}.` : '.');
 ---
 <Base lang={lang} title={p.name[lang]} alternate={productPath(other, p.slug)}>
   <div class="wrap crumbs muted">

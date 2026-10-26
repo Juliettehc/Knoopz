@@ -25,7 +25,6 @@ const cost = (c: number | null) => (c === 0 ? t(lang, 'ship.freeAlways') : forma
         <span class="label">{t(lang, 'ship.costs')}</span>
         <dl>
           <div><dt>{t(lang, 'ship.nl')}</dt><dd>{cost(sh.nl)}</dd></div>
-          <div><dt>{t(lang, 'ship.be')}</dt><dd>{cost(sh.be)}</dd></div>
         </dl>
         {sh.freeFrom && <p class="muted">{t(lang, 'ship.free').replace('{v}', formatPrice(lang, sh.freeFrom))}</p>}
       </div>
