@@ -1109,7 +1109,7 @@ const SHIP_CFG: SitePageCfg = {
 const legalCfg = (route: string, prefix: string, title: string, ph: string): SitePageCfg => ({
   route,
   title,
-  note: 'Opmaak: begin een regel met "## " voor een tussenkop en met "- " voor een opsommingsteken. Laat een witregel tussen alinea\'s.',
+  note: 'Opmaak: begin een regel met "## " voor een tussenkop en met "- " voor een opsommingsteken of met "1. " voor een genummerde lijst (de nummers gaan vanzelf). Laat een witregel tussen alinea\'s.',
   sql: '009_verzending_retour.sql',
   sections: [
     {
