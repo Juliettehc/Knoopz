@@ -1,0 +1,78 @@
+---
+// Intro bij het eerste bezoek: knoopjes vallen in beeld, daarna verschijnt het logo en schuift het intro weg.
+// Eén keer per bezoek (sessionStorage). Wordt overgeslagen bij "minder beweging" en met een klik/toets.
+---
+<script is:inline>
+  (function () {
+    try {
+      if (sessionStorage.getItem('knoopz-intro')) return;
+      sessionStorage.setItem('knoopz-intro', '1');
+    } catch (e) {}
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    // kleur, grootte (px), eindpositie t.o.v. midden (x, y in px), draaiing, vertraging (ms)
+    var knopen = [
+      ['#a61f2e', 46, -92, -6, 200, 0],
+      ['#e9dcc4', 34, -46, 14, -140, 90],
+      ['#5a6b4a', 40, 0, -10, 260, 170],
+      ['#8f4a5c', 30, 42, 12, -220, 60],
+      ['#a61f2e', 38, 86, -4, 180, 230],
+      ['#d9c7a3', 26, -20, -34, -90, 300],
+      ['#2f2a26', 24, 28, -36, 320, 130],
+    ];
+    var hole = function (c) { return c === '#e9dcc4' || c === '#d9c7a3' ? '#7a6a55' : '#f6f3ee'; };
+    var svg = function (c) {
+      var h = hole(c);
+      return '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="9.5" fill="' + c + '"/>' +
+        '<circle cx="10" cy="10" r="6.6" fill="none" stroke="' + h + '" stroke-opacity=".35" stroke-width=".9"/>' +
+        '<circle cx="7.7" cy="7.7" r="1.3" fill="' + h + '"/><circle cx="12.3" cy="7.7" r="1.3" fill="' + h + '"/>' +
+        '<circle cx="7.7" cy="12.3" r="1.3" fill="' + h + '"/><circle cx="12.3" cy="12.3" r="1.3" fill="' + h + '"/></svg>';
+    };
+
+    var el = document.createElement('div');
+    el.className = 'kz-intro';
+    el.setAttribute('aria-hidden', 'true');
+    var html = '<div class="kz-stage">';
+    knopen.forEach(function (k) {
+      html += '<span class="kz-knoop" style="--c:' + k[0] + ';--s:' + k[1] + 'px;--x:' + k[2] + 'px;--y:' + k[3] + 'px;--r:' + k[4] + 'deg;--d:' + k[5] + 'ms">' + svg(k[0]) + '</span>';
+    });
+    html += '<img class="kz-logo" src="/knoopz-logo.png" alt="" width="900" height="169" /></div>';
+    el.innerHTML = html;
+    document.documentElement.classList.add('kz-intro-on');
+    document.body.prepend(el);
+
+    var done = false;
+    var close = function () {
+      if (done) return;
+      done = true;
+      el.classList.add('kz-out');
+      document.documentElement.classList.remove('kz-intro-on');
+      setTimeout(function () { el.remove(); }, 600);
+    };
+    setTimeout(close, 2100);
+    el.addEventListener('click', close);
+    window.addEventListener('keydown', close, { once: true });
+  })();
+</script>
+
+<style is:global>
+  .kz-intro-on { overflow: hidden; }
+  .kz-intro { position: fixed; inset: 0; z-index: 1000; background: var(--bg); display: flex; align-items: center; justify-content: center; transition: opacity 0.55s ease, transform 0.55s ease; cursor: pointer; }
+  .kz-intro.kz-out { opacity: 0; transform: translateY(-24px); pointer-events: none; }
+  .kz-stage { position: relative; width: 300px; height: 220px; }
+  .kz-knoop { position: absolute; left: 50%; top: 42%; width: var(--s); height: var(--s); margin: calc(var(--s) / -2) 0 0 calc(var(--s) / -2); transform: translate(var(--x), -70vh) rotate(0deg); animation: kz-val 0.9s cubic-bezier(0.3, 0, 0.4, 1) var(--d) forwards; filter: drop-shadow(0 3px 4px rgba(20, 20, 20, 0.18)); }
+  .kz-knoop svg { width: 100%; height: 100%; display: block; }
+  @keyframes kz-val {
+    0% { transform: translate(var(--x), -70vh) rotate(0deg); }
+    62% { transform: translate(var(--x), var(--y)) rotate(var(--r)); }
+    78% { transform: translate(var(--x), calc(var(--y) - 16px)) rotate(var(--r)); }
+    90% { transform: translate(var(--x), var(--y)) rotate(var(--r)); }
+    95% { transform: translate(var(--x), calc(var(--y) - 4px)) rotate(var(--r)); }
+    100% { transform: translate(var(--x), var(--y)) rotate(var(--r)); }
+  }
+  .kz-logo { position: absolute; left: 50%; bottom: 8px; width: 200px; height: auto; transform: translate(-50%, 8px); opacity: 0; animation: kz-logo 0.5s ease 1.1s forwards; }
+  @keyframes kz-logo { to { opacity: 1; transform: translate(-50%, 0); } }
+  @media (max-width: 760px) {
+    .kz-stage { transform: scale(0.85); }
+  }
+</style>
