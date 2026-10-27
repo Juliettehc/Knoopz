@@ -8,6 +8,11 @@ export function initThanks() {
   const lang = root.dataset.lang === 'en' ? 'en' : 'nl';
   const L: Record<string, string> = JSON.parse(root.querySelector('[data-labels]')!.textContent || '{}');
   const $ = (s: string) => root.querySelector<HTMLElement>(s)!;
+  // Draaiend knoopje stoppen zodra er een uitkomst is
+  const stop = () => {
+    const s = root.querySelector<HTMLElement>('[data-spin]');
+    if (s) s.hidden = true;
+  };
   const money = (c: number) => new Intl.NumberFormat(lang === 'en' ? 'en-IE' : 'nl-NL', { style: 'currency', currency: 'EUR' }).format(c / 100);
   const token = new URLSearchParams(location.search).get('o') ?? '';
   let tries = 0;
@@ -45,7 +50,7 @@ export function initThanks() {
     try {
       const res = await fetch(`/api/order?o=${encodeURIComponent(token)}`, { cache: 'no-store' });
       if (res.status === 404) {
-        $('[data-msg]').textContent = L['thanks.notFound'];
+        { stop(); $('[data-msg]').textContent = L['thanks.notFound']; }
         return;
       }
       if (res.ok) o = await res.json();
@@ -54,7 +59,7 @@ export function initThanks() {
     if (o && (o.status === 'paid' || o.status === 'shipped')) {
       clearCart();
       forgetPending();
-      $('[data-msg]').textContent = L['thanks.paid'].replace('{email}', o.email);
+      { stop(); $('[data-msg]').textContent = L['thanks.paid'].replace('{email}', o.email); }
       show(o);
       return;
     }
@@ -62,17 +67,17 @@ export function initThanks() {
       forgetPending();
       $('[data-title]').textContent = L['thanks.failedTitle'];
       document.title = document.title.replace(L['thanks.title'], L['thanks.failedTitle']);
-      $('[data-msg]').textContent = L['thanks.failed'];
+      { stop(); $('[data-msg]').textContent = L['thanks.failed']; }
       $('[data-retry]').hidden = false;
       return;
     }
     // nog in behandeling: even later opnieuw kijken
     if (++tries < 12) setTimeout(check, 2500);
-    else $('[data-msg]').textContent = L['thanks.slow'];
+    else { stop(); $('[data-msg]').textContent = L['thanks.slow']; }
   }
 
   if (!/^[0-9a-f-]{36}$/i.test(token)) {
-    $('[data-msg]').textContent = L['thanks.notFound'];
+    { stop(); $('[data-msg]').textContent = L['thanks.notFound']; }
     return;
   }
   check();

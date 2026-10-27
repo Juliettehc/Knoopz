@@ -102,6 +102,7 @@ const labels = {
     const get = (n: string) => ((form.elements.namedItem(n) as HTMLInputElement).value || '').trim();
     if (!form.checkValidity() || get('message').length < 5) return show(L.invalid, true);
     btn.disabled = true;
+    btn.setAttribute('aria-busy', 'true');
     try {
       const res = await fetch('/api/contact', {
         method: 'POST',
@@ -119,5 +120,6 @@ const labels = {
       show(L.server, true);
     }
     btn.disabled = false;
+    btn.removeAttribute('aria-busy');
   });
 </script>

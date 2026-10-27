@@ -193,6 +193,7 @@ export function initCheckout() {
     saveDetails();
 
     payBtn.disabled = true;
+    payBtn.setAttribute('aria-busy', 'true');
     const label = payBtn.textContent;
     payBtn.textContent = L['checkout.busy'];
     try {
@@ -229,6 +230,7 @@ export function initCheckout() {
       showAlert(L['err.server']);
     }
     payBtn.disabled = false;
+    payBtn.removeAttribute('aria-busy');
     payBtn.textContent = label;
   });
 
@@ -236,6 +238,7 @@ export function initCheckout() {
   window.addEventListener('pageshow', (e) => {
     if (e.persisted) {
       payBtn.disabled = false;
+      payBtn.removeAttribute('aria-busy');
       payBtn.textContent = L['checkout.pay'];
       loadQuote();
     }

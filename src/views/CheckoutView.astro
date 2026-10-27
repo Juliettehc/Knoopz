@@ -61,7 +61,7 @@ const L = Object.fromEntries(Object.entries(ui[lang]).filter(([k]) => k.startsWi
 
       <aside class="co-sum" aria-labelledby="sum-title">
         <h2 class="label" id="sum-title">{t(lang, 'checkout.summary')}</h2>
-        <p class="muted small" data-loading>{t(lang, 'checkout.loading')}</p>
+        <p class="muted small kz-loader" data-loading>{t(lang, 'checkout.loading')}</p>
         <ul class="co-items" data-items></ul>
         <dl class="co-totals" data-totals hidden>
           <div><dt>{t(lang, 'cart.subtotal')}</dt><dd data-sub></dd></div>

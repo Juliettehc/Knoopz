@@ -11,6 +11,7 @@ const L = Object.fromEntries(Object.entries(ui[lang]).filter(([k]) => k.startsWi
   <section class="wrap section ty" data-thanks data-lang={lang}>
     <h1 class="h2" data-title>{t(lang, 'thanks.title')}</h1>
     <p class="lead" data-msg>{t(lang, 'thanks.pending')}</p>
+    <span class="kz-loader" data-spin aria-hidden="true"></span>
     <p class="ty-nr" data-nr hidden></p>
     <div class="ty-box" data-box hidden>
       <ul class="ty-items" data-items></ul>
