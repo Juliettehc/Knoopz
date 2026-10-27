@@ -18,8 +18,8 @@ const enHref = lang === 'en' ? Astro.url.pathname : alternate;
       </button>
       <nav class="nav-desktop label" aria-label={t(lang, 'nav.main')}>
         <div class="nav-shop" data-shop>
-          <button type="button" class="nav-link" aria-expanded="false" aria-controls="mega" data-shop-toggle>
-            {t(lang, 'nav.shop')} <span aria-hidden="true" class="caret">▾</span>
+          <button type="button" class="nav-link nav-burger" aria-label={t(lang, 'nav.shop')} aria-expanded="false" aria-controls="mega" data-shop-toggle>
+            <svg width="22" height="14" viewBox="0 0 22 14" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M0 1h22M0 7h22M0 13h22" /></svg>
           </button>
           <div class="mega" id="mega" hidden data-mega>
             <div class="wrap mega-inner">
@@ -103,6 +103,8 @@ const enHref = lang === 'en' ? Astro.url.pathname : alternate;
   .nav-link { background: none; border: 0; padding: 0; text-decoration: none; font: inherit; letter-spacing: inherit; text-transform: inherit; min-height: 44px; display: inline-flex; align-items: center; gap: 6px; }
   .nav-link:hover { text-decoration: underline; text-underline-offset: 6px; }
   .caret { font-size: 10px; }
+  .nav-burger { width: 44px; justify-content: center; margin-left: -11px; }
+  .nav-burger:hover { text-decoration: none; opacity: 0.6; }
   .lang-switch { display: flex; gap: 6px; align-items: center; }
   .lang-switch a { text-decoration: none; color: var(--muted); }
   .lang-switch a[aria-current] { color: var(--ink); }
