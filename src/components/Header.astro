@@ -24,6 +24,7 @@ const enHref = lang === 'en' ? Astro.url.pathname : alternate;
           <div class="mega" id="mega" hidden data-mega>
             <div class="wrap mega-inner">
               <div class="mega-col">
+                <a class="mega-home" href={routes.home[lang]}>{t(lang, 'nav.home')}</a>
                 <span class="eyebrow">{t(lang, 'nav.shop')}</span>
                 <a href={routes.shop[lang]}>{t(lang, 'nav.allProducts')}</a>
                 {drops.map((d) => <a href={dropPath(lang, d.slug)}>{d.name[lang]}</a>)}
@@ -71,6 +72,7 @@ const enHref = lang === 'en' ? Astro.url.pathname : alternate;
     <span class="mm-spacer"></span>
   </div>
   <nav class="mm-nav" aria-label={t(lang, 'nav.main')}>
+    <a href={routes.home[lang]}>{t(lang, 'nav.home')}</a>
     <details open>
       <summary>{t(lang, 'nav.shop')}</summary>
       <div class="mm-sub">
@@ -117,6 +119,7 @@ const enHref = lang === 'en' ? Astro.url.pathname : alternate;
   .mega-col { display: flex; flex-direction: column; gap: 14px; font-size: 15px; }
   .mega-col a, .mega-tile { text-decoration: none; }
   .mega-col a:hover { text-decoration: underline; text-underline-offset: 4px; }
+  .mega-home { margin-bottom: 18px; }
   .mega-tile { display: flex; flex-direction: column; gap: 10px; }
   .mega-img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; display: block; background: var(--surface, #f2f0ec); }
   .mega-backdrop { position: fixed; inset: 0; top: var(--header-h); background: rgba(20, 20, 20, 0.25); z-index: 39; }

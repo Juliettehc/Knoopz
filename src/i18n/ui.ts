@@ -21,6 +21,7 @@ export const productPath = (lang: Lang, slug: string) => (lang === 'nl' ? `/prod
 
 export const ui = {
   nl: {
+    'nav.home': 'Home',
     'nav.shop': 'Shop',
     'nav.allProducts': 'Alle producten',
     'nav.about': 'Over KNOOPZ',
@@ -157,6 +158,7 @@ export const ui = {
     'price.total': '[Bedrag]',
   },
   en: {
+    'nav.home': 'Home',
     'nav.shop': 'Shop',
     'nav.allProducts': 'All products',
     'nav.about': 'About KNOOPZ',
