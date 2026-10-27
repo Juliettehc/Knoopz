@@ -64,4 +64,8 @@ for (const chunk of tx(`${prefix}_text`).split(/\n\s*\n/)) {
   .lg h2 { margin-top: 24px; font-size: clamp(22px, 2.2vw, 28px); }
   .lg p, .lg li { margin: 0; font-size: 16px; line-height: 1.75; color: var(--muted); }
   .lg ul, .lg ol { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
+  /* Opsommingen met een klein knoopje in KNOOPZ-rood in plaats van een stip */
+  .lg ul { list-style: none; padding-left: 26px; }
+  .lg ul li { position: relative; }
+  .lg ul li::before { content: ''; position: absolute; left: -26px; top: 0.5em; width: 13px; height: 13px; background: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'><circle cx='10' cy='10' r='9' fill='%23a61f2e'/><circle cx='10' cy='10' r='6.2' fill='none' stroke='%23fff' stroke-opacity='.35' stroke-width='1'/><circle cx='7.6' cy='7.6' r='1.4' fill='%23fff'/><circle cx='12.4' cy='7.6' r='1.4' fill='%23fff'/><circle cx='7.6' cy='12.4' r='1.4' fill='%23fff'/><circle cx='12.4' cy='12.4' r='1.4' fill='%23fff'/></svg>") no-repeat center / contain; }
 </style>
