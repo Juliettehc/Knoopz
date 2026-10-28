@@ -105,7 +105,7 @@ const shipCosts = sh.nl === null ? '' :
         </details>
         <details>
           <summary>{t(lang, 'product.shipping')}</summary>
-          {shipText && {textBlocks(shipText).map(({ Tag, cls, html }) => <Tag class={cls} set:html={html} />)}}
+          {shipText && textBlocks(shipText).map(({ Tag, cls, html }) => <Tag class={cls} set:html={html} />)}
           {shipCosts && <p set:html={rich(shipCosts)} />}
           <p><a href={routes.shipping[lang]}>{t(lang, 'ship.more')}</a></p>
         </details>

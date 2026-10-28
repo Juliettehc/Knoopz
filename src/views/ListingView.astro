@@ -27,7 +27,7 @@ const { lang, title, intro, crumbs, items, alternate } = Astro.props;
       ))}
     </nav>
     <h1 class="h1">{title}</h1>
-    {intro && {textBlocks(intro, 'lead').map(({ Tag, cls, html }) => <Tag class={cls} set:html={html} />)}}
+    {intro && textBlocks(intro, 'lead').map(({ Tag, cls, html }) => <Tag class={cls} set:html={html} />)}
   </section>
 
   <section class="wrap listing" data-listing>
