@@ -22,11 +22,11 @@ export async function processPayment(env: Env, paymentId: string, origin: string
     if (order) {
       const first = await rpc<boolean | null>(env, 'mark_confirmation_sent', { p_order: orderId });
       if (first) {
-        const m = confirmationMail(order);
+        const m = await confirmationMail(env, order, origin);
         await sendMail(env, order.email, m.subject, m.html);
         const admins = await rpc<string[]>(env, 'admin_emails', {});
         if (admins?.length) {
-          const a = adminMail(order, `${origin}/admin/#/bestelling/${order.id}`);
+          const a = await adminMail(env, order, origin);
           await sendMail(env, admins, a.subject, a.html);
         }
       }

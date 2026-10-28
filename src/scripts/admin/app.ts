@@ -4,6 +4,7 @@
 import { createClient, type Session } from '@supabase/supabase-js';
 import { SUPABASE_URL, SUPABASE_KEY, IMAGE_BUCKET, publicImageUrl } from '../../lib/supabase-config';
 import { resizeImage } from './images';
+import { renderEmail, TEMPLATES, DEFAULTS, FIELD_LABELS, PLACEHOLDERS, SAMPLE_ORDER } from '../../lib/email-templates.js';
 
 // Uitleg over tekstopmaak, overal hetzelfde (zie textBlocks in lib/rich.ts)
 const FORMAT_HELP = 'Opmaak in lange teksten: <strong>**woord**</strong> = dikgedrukt, een regel met <strong>## </strong> = tussenkop, <strong>- </strong> = opsomming met knoopjes, <strong>1. </strong> = genummerde lijst, witregel = nieuwe alinea.';
@@ -150,6 +151,7 @@ async function route() {
   if (section === 'privacy') return viewSitePage(PRIVACY_CFG);
   if (section === 'voorwaarden') return viewSitePage(TERMS_CFG);
   if (section === 'instellingen') return viewSettings();
+  if (section === 'emails') return viewEmails();
   return viewProducts();
 }
 
@@ -761,8 +763,12 @@ async function viewDrops() {
 // ---------- instellingen ----------
 async function viewSettings() {
   app.innerHTML = '<p class="muted">Laden…</p>';
-  const { data, error } = await sb.from('settings').select('*').eq('id', 1).single();
+  const [{ data, error }, snd] = await Promise.all([
+    sb.from('settings').select('*').eq('id', 1).single(),
+    sb.from('shipping_sender').select('*').eq('id', 1).maybeSingle(),
+  ]);
   if (error) return fail(error, 'Instellingen laden');
+  const s: any = snd.data ?? {};
   app.innerHTML = `
     <h1>Instellingen</h1>
     <h2>Verzending</h2>
@@ -781,6 +787,28 @@ async function viewSettings() {
       <p class="a-note">Zolang de verzendkosten voor Nederland leeg zijn, kunnen klanten nog niet afrekenen. Vul 0 in voor gratis verzending.</p>
       <div class="a-buttons"><button class="btn btn-dark" type="submit">Opslaan</button></div>
     </form>
+    <h2>PostNL-label: afzender</h2>
+    ${
+      snd.error
+        ? `<p class="a-note">Voer eerst <strong>supabase/migrations/011_postnl_emails.sql</strong> uit in Supabase.</p>`
+        : `<form class="a-form a-card" data-sender novalidate>
+      <div class="a-row">
+        <label class="a-field"><span>Naam afzender</span><input name="company" placeholder="KNOOPZ" value="${esc(s.company)}" /></label>
+        <label class="a-field"><span>Gewicht pakket (gram)</span><input name="weight" inputmode="numeric" value="${esc(s.weight_grams ?? 1000)}" /><small>Standaard voor elk label</small></label>
+      </div>
+      <div class="a-row a-row-3">
+        <label class="a-field"><span>Straat</span><input name="street" value="${esc(s.street)}" /></label>
+        <label class="a-field"><span>Huisnummer</span><input name="house_nr" inputmode="numeric" value="${esc(s.house_nr)}" /></label>
+        <label class="a-field"><span>Toevoeging</span><input name="house_nr_ext" value="${esc(s.house_nr_ext)}" /></label>
+      </div>
+      <div class="a-row">
+        <label class="a-field"><span>Postcode</span><input name="postal_code" value="${esc(s.postal_code)}" /></label>
+        <label class="a-field"><span>Plaats</span><input name="city" value="${esc(s.city)}" /></label>
+      </div>
+      <p class="a-note">Dit adres komt als afzender op het PostNL-label en is alleen zichtbaar in het beheer. De PostNL API-sleutel en klantcode staan veilig in Cloudflare.</p>
+      <div class="a-buttons"><button class="btn btn-dark" type="submit">Opslaan</button></div>
+    </form>`
+    }
     <h2>Mijn wachtwoord</h2>
     <form class="a-form a-card" data-pw novalidate>
       <div class="a-row">
@@ -810,13 +838,145 @@ async function viewSettings() {
       fail(e, 'Opslaan');
     }
   });
+  const sender = app.querySelector<HTMLFormElement>('[data-sender]');
+  sender?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const weight = parseInt(val(sender, 'weight'), 10);
+    if (!(weight >= 1 && weight <= 31500)) return toast('Vul een gewicht in tussen 1 en 31500 gram.', true);
+    try {
+      const { error } = await sb
+        .from('shipping_sender')
+        .update({
+          company: orNull(val(sender, 'company')),
+          street: orNull(val(sender, 'street')),
+          house_nr: orNull(val(sender, 'house_nr')),
+          house_nr_ext: orNull(val(sender, 'house_nr_ext')),
+          postal_code: orNull(val(sender, 'postal_code').toUpperCase()),
+          city: orNull(val(sender, 'city')),
+          weight_grams: weight,
+        })
+        .eq('id', 1);
+      if (error) throw error;
+      toast('Afzender opgeslagen.');
+    } catch (e) {
+      fail(e, 'Opslaan');
+    }
+  });
   bindPasswordForm(app.querySelector<HTMLFormElement>('[data-pw]')!, () => {});
+}
+
+// ---------- e-mails ----------
+type MailTexts = Record<string, Record<string, Record<string, string>>>;
+
+async function viewEmails(key = 'confirmation', lang: 'nl' | 'en' = 'nl') {
+  app.innerHTML = '<p class="muted">Laden…</p>';
+  const { data, error } = await sb.from('email_templates').select('*');
+  if (error) {
+    app.innerHTML = `<h1>E-mails</h1><p class="a-note">Voer eerst <strong>supabase/migrations/011_postnl_emails.sql</strong> uit in Supabase.</p>`;
+    return;
+  }
+  const own: MailTexts = {};
+  for (const r of data as any[]) (own[r.key] ??= {})[r.lang] = { subject: r.subject, heading: r.heading, body: r.body, button: r.button };
+
+  const tpl = TEMPLATES.find((t) => t.key === key) ?? TEMPLATES[0];
+  if (tpl.nlOnly) lang = 'nl';
+  const defaults = (DEFAULTS as any)[tpl.key]?.[lang] ?? (DEFAULTS as any)[tpl.key].nl;
+  const current = (f: string) => own[tpl.key]?.[lang]?.[f] || defaults[f] || '';
+  const changed = tpl.fields.some((f) => own[tpl.key]?.[lang]?.[f]);
+
+  app.innerHTML = `
+    <h1>E-mails</h1>
+    <p class="a-note">Pas hier de teksten aan van de mails die automatisch worden verstuurd. Het voorbeeld rechts laat zien hoe de mail eruitziet (met een voorbeeldbestelling).</p>
+    <div class="a-filters a-mail-tabs" role="group" aria-label="Kies een e-mail">
+      ${TEMPLATES.map((t) => `<button class="filter" aria-pressed="${t.key === tpl.key}" data-key="${t.key}">${esc(t.title)}</button>`).join('')}
+    </div>
+    <div class="a-mail">
+      <form class="a-form a-card" data-mail novalidate>
+        <p class="a-note"><strong>Naar:</strong> ${esc(tpl.to)} · <strong>Wanneer:</strong> ${esc(tpl.when)}${changed ? ' · <span class="a-pill">Aangepast</span>' : ''}</p>
+        ${
+          tpl.nlOnly
+            ? ''
+            : `<div class="a-filters" role="group" aria-label="Taal">
+          <button type="button" class="filter" aria-pressed="${lang === 'nl'}" data-lang="nl">Nederlands</button>
+          <button type="button" class="filter" aria-pressed="${lang === 'en'}" data-lang="en">Engels</button>
+        </div>`
+        }
+        ${tpl.fields
+          .map((f) =>
+            f === 'body'
+              ? `<label class="a-field"><span>${(FIELD_LABELS as any)[f]}</span><textarea name="${f}" rows="${tpl.key === 'footer' ? 5 : 8}">${esc(current(f))}</textarea></label>`
+              : `<label class="a-field"><span>${(FIELD_LABELS as any)[f]}</span><input name="${f}" value="${esc(current(f))}" /></label>`,
+          )
+          .join('')}
+        <p class="a-note">Opmaak: <strong>**woord**</strong> = dikgedrukt, witregel = nieuwe alinea. Deze woorden worden automatisch ingevuld:<br>
+        ${PLACEHOLDERS.map(([k, d]) => `<code>${esc(k)}</code> ${esc(d)}`).join('<br>')}</p>
+        <div class="a-buttons">
+          <button class="btn btn-dark" type="submit">Opslaan</button>
+          ${changed ? '<button class="btn btn-outline" type="button" data-reset>Standaardtekst terugzetten</button>' : ''}
+        </div>
+      </form>
+      <div class="a-mail-preview">
+        <p class="a-note" data-subject></p>
+        <iframe title="Voorbeeld van de e-mail" data-preview></iframe>
+      </div>
+    </div>`;
+
+  const form = app.querySelector<HTMLFormElement>('[data-mail]')!;
+  const frame = app.querySelector<HTMLIFrameElement>('[data-preview]')!;
+  const subjectEl = app.querySelector<HTMLElement>('[data-subject]')!;
+  const draft = (): MailTexts => {
+    const d: MailTexts = JSON.parse(JSON.stringify(own));
+    (d[tpl.key] ??= {})[lang] = Object.fromEntries(tpl.fields.map((f) => [f, val(form, f)]));
+    return d;
+  };
+  const preview = () => {
+    // De afsluiting staat in elke klantmail; laat hem zien in de bevestiging
+    const show = tpl.key === 'footer' ? 'confirmation' : tpl.key;
+    const m = renderEmail(show as any, { ...SAMPLE_ORDER, lang }, draft(), { origin: location.origin, adminUrl: `${location.origin}/admin/` });
+    subjectEl.innerHTML = `<strong>Onderwerp:</strong> ${esc(m.subject)}`;
+    frame.srcdoc = m.html;
+  };
+  let timer = 0;
+  form.addEventListener('input', () => {
+    clearTimeout(timer);
+    timer = window.setTimeout(preview, 250);
+  });
+  preview();
+
+  app.querySelectorAll<HTMLButtonElement>('[data-key]').forEach((b) => b.addEventListener('click', () => viewEmails(b.dataset.key!, lang)));
+  app.querySelectorAll<HTMLButtonElement>('[data-lang]').forEach((b) => b.addEventListener('click', () => viewEmails(tpl.key, b.dataset.lang as 'nl' | 'en')));
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    // Gelijk aan de standaardtekst? Dan niets opslaan, zodat verbeteringen in de standaard vanzelf meekomen.
+    const row: Record<string, string | null> = { key: tpl.key, lang };
+    for (const f of tpl.fields) {
+      const v = val(form, f);
+      row[f] = v && v !== defaults[f] ? v : null;
+    }
+    try {
+      const { error } = await sb.from('email_templates').upsert(row);
+      if (error) throw error;
+      toast('Opgeslagen. Nieuwe mails gebruiken deze tekst direct.');
+      viewEmails(tpl.key, lang);
+    } catch (err) {
+      fail(err, 'Opslaan');
+    }
+  });
+  app.querySelector('[data-reset]')?.addEventListener('click', async () => {
+    if (!confirm('De standaardtekst terugzetten? Je eigen tekst voor deze mail verdwijnt.')) return;
+    const { error } = await sb.from('email_templates').delete().eq('key', tpl.key).eq('lang', lang);
+    if (error) return fail(error, 'Terugzetten');
+    toast('Standaardtekst teruggezet.');
+    viewEmails(tpl.key, lang);
+  });
 }
 
 // ---------- bestellingen ----------
 const STATUS: Record<string, { label: string; cls: string }> = {
   paid: { label: 'Betaald · te verzenden', cls: 'todo' },
   shipped: { label: 'Verzonden', cls: '' },
+  delivered: { label: 'Bezorgd', cls: 'done' },
   pending: { label: 'Wacht op betaling', cls: 'hidden' },
   cancelled: { label: 'Geannuleerd', cls: 'hidden' },
   expired: { label: 'Verlopen', cls: 'hidden' },
@@ -830,7 +990,7 @@ async function viewOrders() {
   app.innerHTML = '<p class="muted">Bestellingen laden…</p>';
   const { data, error } = await sb
     .from('orders')
-    .select('id,number,status,first_name,last_name,email,total_cents,created_at,paid_at,needs_attention,country')
+    .select('id,number,status,first_name,last_name,email,total_cents,created_at,paid_at,needs_attention,country,postnl_barcode')
     .order('created_at', { ascending: false })
     .limit(500);
   if (error) return fail(error, 'Bestellingen laden');
@@ -843,7 +1003,8 @@ async function viewOrders() {
       <input class="a-search" type="search" placeholder="Zoek op nummer, naam of e-mail" aria-label="Zoek bestellingen" data-q />
       <div class="a-filters" role="group" aria-label="Filter">
         <button class="filter" aria-pressed="true" data-f="todo">Te verzenden (${counts.todo})</button>
-        <button class="filter" aria-pressed="false" data-f="shipped">Verzonden</button>
+        <button class="filter" aria-pressed="false" data-f="shipped">Onderweg</button>
+        <button class="filter" aria-pressed="false" data-f="delivered">Bezorgd</button>
         <button class="filter" aria-pressed="false" data-f="paidall">Alle betaalde</button>
         <button class="filter" aria-pressed="false" data-f="open">Niet betaald</button>
       </div>
@@ -866,8 +1027,9 @@ async function viewOrders() {
       if (term && !`${r.number} ${r.first_name} ${r.last_name} ${r.email}`.toLowerCase().includes(term)) return false;
       if (filter === 'todo') return r.status === 'paid';
       if (filter === 'shipped') return r.status === 'shipped';
-      if (filter === 'paidall') return r.status === 'paid' || r.status === 'shipped';
-      return !['paid', 'shipped'].includes(r.status);
+      if (filter === 'delivered') return r.status === 'delivered';
+      if (filter === 'paidall') return PAID.includes(r.status);
+      return !PAID.includes(r.status);
     });
     app.querySelector('[data-count]')!.textContent = `${list.length} bestelling${list.length === 1 ? '' : 'en'}`;
     tbody.innerHTML = list.length
@@ -893,6 +1055,41 @@ async function viewOrders() {
     }),
   );
   render();
+
+  // Bij PostNL navragen of verzonden pakketten intussen bezorgd zijn
+  if (rows.some((r) => r.status === 'shipped' && r.postnl_barcode)) {
+    const r = await adminPost('/api/admin/track', {}).catch(() => null);
+    if (r?.delivered?.length && location.hash.startsWith('#/bestellingen')) {
+      rows.forEach((x) => r.delivered.includes(x.id) && (x.status = 'delivered'));
+      render();
+      toast(`${r.delivered.length} pakket${r.delivered.length === 1 ? ' is' : 'ten zijn'} bezorgd.`);
+    }
+  }
+}
+
+const PAID = ['paid', 'shipped', 'delivered'];
+
+// POST naar een beheer-endpoint met het token van de ingelogde beheerder
+async function adminPost(url: string, body: unknown) {
+  const { data } = await sb.auth.getSession();
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${data.session?.access_token ?? ''}` },
+    body: JSON.stringify(body),
+  });
+  const r = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(r.error === 'forbidden' ? 'geen toegang' : r.message || r.error || `fout ${res.status}`);
+  return r;
+}
+
+function downloadPdf(base64: string, name: string) {
+  const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+  const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+  const a = Object.assign(document.createElement('a'), { href: url, download: name });
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
 }
 
 async function viewOrder(id: string) {
@@ -902,6 +1099,7 @@ async function viewOrder(id: string) {
   const countries: Record<string, string> = { NL: 'Nederland', BE: 'België' };
   const addressText = `${o.first_name} ${o.last_name}\n${o.street}\n${o.postal_code} ${o.city}\n${countries[o.country] ?? o.country}`;
   const canShip = o.status === 'paid' || o.status === 'shipped';
+  const hasLabel = !!o.postnl_barcode;
 
   app.innerHTML = `
     <p><a href="#/bestellingen">← Terug naar bestellingen</a></p>
@@ -922,6 +1120,7 @@ async function viewOrder(id: string) {
           <div><dt>Methode</dt><dd>${esc(o.payment_method ?? '—')}</dd></div>
           <div><dt>Mollie-id</dt><dd>${esc(o.mollie_payment_id ?? '—')}</dd></div>
           <div><dt>Verzonden</dt><dd>${esc(dateTime(o.shipped_at))}</dd></div>
+          <div><dt>Bezorgd</dt><dd>${esc(dateTime(o.delivered_at))}</dd></div>
           <div><dt>Taal klant</dt><dd>${o.lang === 'en' ? 'Engels' : 'Nederlands'}</dd></div>
         </dl>
       </div>
@@ -939,13 +1138,31 @@ async function viewOrder(id: string) {
     </table></div>
     <p class="a-note">${o.vat_mode === 'kor' ? 'KOR: geen btw berekend.' : `Waarvan btw (21%): ${esc(euro(o.vat_cents))}`}</p>
     ${
-      canShip
+      PAID.includes(o.status)
         ? `<h2>Verzending</h2>
+    <div class="a-card a-ship">
+      ${
+        hasLabel
+          ? `<dl class="a-dl">
+        <div><dt>Status</dt><dd>${o.status === 'delivered' ? `<strong>Bezorgd</strong> · ${esc(dateTime(o.delivered_at))}` : 'Onderweg met PostNL'}</dd></div>
+        <div><dt>Barcode</dt><dd>${esc(o.postnl_barcode)}</dd></div>
+        <div><dt>Track &amp; trace</dt><dd>${o.tracking_url ? `<a href="${esc(o.tracking_url)}" target="_blank" rel="noopener">Open bij PostNL</a>` : '—'}</dd></div>
+      </dl>
+      <div class="a-buttons"><button class="btn btn-dark" type="button" data-pdf>Label downloaden (PDF)</button>${o.status === 'shipped' ? '<button class="btn btn-outline" type="button" data-track>Bezorgstatus controleren</button>' : ''}</div>`
+          : `<p>Maak het PostNL-verzendlabel aan. Je krijgt direct een PDF om te printen, de bestelling gaat op <strong>verzonden</strong> en de klant krijgt de mail <em>"Je bestelling is onderweg"</em> met de track &amp; trace.</p>
+      <div class="a-buttons"><button class="btn btn-dark" type="button" data-label>Label aanmaken</button></div>`
+      }
+    </div>
+    ${
+      canShip && !hasLabel
+        ? `<details class="a-details"><summary>Zonder PostNL-label verzenden (handmatig)</summary>
     <form class="a-form a-card" data-ship novalidate>
       <label class="a-field"><span>Track &amp; trace-link (optioneel)</span><input name="tracking" type="url" placeholder="https://..." value="${esc(o.tracking_url)}" /></label>
       <label class="a-check"><input type="checkbox" name="notify" checked /> Stuur de klant een e-mail dat het pakket onderweg is</label>
-      <div class="a-buttons"><button class="btn btn-dark" type="submit">${o.status === 'shipped' ? 'Verzendgegevens bijwerken' : 'Markeer als verzonden'}</button></div>
-    </form>`
+      <div class="a-buttons"><button class="btn btn-outline" type="submit">${o.status === 'shipped' ? 'Verzendgegevens bijwerken' : 'Markeer als verzonden'}</button></div>
+    </form></details>`
+        : ''
+    }`
         : ''
     }`;
 
@@ -961,6 +1178,39 @@ async function viewOrder(id: string) {
     const { error } = await sb.from('orders').update({ needs_attention: null }).eq('id', id);
     if (error) return fail(error, 'Opslaan');
     viewOrder(id);
+  });
+  const labelBtn = app.querySelector<HTMLButtonElement>('[data-label]');
+  labelBtn?.addEventListener('click', async () => {
+    if (!confirm(`Label aanmaken voor ${o.number}? De klant krijgt daarna direct de mail dat het pakket onderweg is.`)) return;
+    labelBtn.disabled = true;
+    labelBtn.textContent = 'Label aanmaken…';
+    try {
+      const r = await adminPost('/api/admin/label', { order_id: id });
+      downloadPdf(r.pdf, `${o.number}-postnl-label.pdf`);
+      toast(r.mailed ? 'Label aangemaakt en de klant is gemaild.' : r.mailEnabled === false ? 'Label aangemaakt. (E-mails zijn nog niet ingesteld.)' : 'Label aangemaakt.');
+      viewOrder(id);
+    } catch (err) {
+      const msg = String((err as Error).message);
+      fail(msg === 'postnl_not_set' ? new Error('PostNL is nog niet ingesteld in Cloudflare (POSTNL_API_KEY, klantcode en klantnummer).') : err, 'Label aanmaken');
+      labelBtn.disabled = false;
+      labelBtn.textContent = 'Label aanmaken';
+    }
+  });
+  app.querySelector('[data-pdf]')?.addEventListener('click', async () => {
+    const { data, error } = await sb.from('shipping_labels').select('pdf_base64').eq('order_id', id).maybeSingle();
+    if (error || !data) return fail(error ?? new Error('label niet gevonden'), 'Label downloaden');
+    downloadPdf(data.pdf_base64, `${o.number}-postnl-label.pdf`);
+  });
+  app.querySelector('[data-track]')?.addEventListener('click', async () => {
+    try {
+      const r = await adminPost('/api/admin/track', {});
+      if (r.delivered?.includes(id)) {
+        toast('Bezorgd!');
+        viewOrder(id);
+      } else toast('Nog niet bezorgd volgens PostNL.');
+    } catch (err) {
+      fail(err, 'Status controleren');
+    }
   });
   const shipForm = app.querySelector<HTMLFormElement>('[data-ship]');
   shipForm?.addEventListener('submit', async (e) => {

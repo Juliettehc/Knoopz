@@ -126,3 +126,24 @@ body.admin { background: var(--bg); }
   .a-table th, .a-table td { padding: 10px 8px; }
   .a-toolbar .a-search { min-width: 0; width: 100%; }
 }
+
+/* Bestellingen: bezorgd, verzending */
+.a-pill.done { background: var(--surface); border-color: var(--surface); }
+.a-ship p { margin: 0 0 16px; font-size: 15px; }
+.a-ship .a-dl { margin-bottom: 20px; }
+.a-details { margin-top: 16px; }
+.a-details summary { cursor: pointer; font-size: 14px; color: var(--muted); padding: 8px 0; }
+.a-details .a-card { margin-top: 8px; }
+
+/* E-mails: tekst links, voorbeeld rechts */
+.a-mail-tabs { margin-bottom: 20px; }
+.a-mail { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 24px; align-items: start; }
+.a-mail textarea { min-height: 140px; }
+.a-mail code { font-size: 12px; background: var(--surface); padding: 1px 5px; }
+.a-mail-preview { position: sticky; top: 88px; }
+.a-mail-preview iframe { width: 100%; height: 760px; border: 1px solid var(--line); background: var(--bg); display: block; }
+@media (max-width: 960px) {
+  .a-mail { grid-template-columns: 1fr; }
+  .a-mail-preview { position: static; }
+  .a-mail-preview iframe { height: 640px; }
+}

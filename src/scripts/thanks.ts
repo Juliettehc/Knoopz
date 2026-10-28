@@ -56,7 +56,7 @@ export function initThanks() {
       if (res.ok) o = await res.json();
     } catch {}
 
-    if (o && (o.status === 'paid' || o.status === 'shipped')) {
+    if (o && ['paid', 'shipped', 'delivered'].includes(o.status)) {
       clearCart();
       forgetPending();
       { stop(); $('[data-msg]').textContent = L['thanks.paid'].replace('{email}', o.email); }

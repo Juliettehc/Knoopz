@@ -8,9 +8,15 @@ export interface Env {
   RESEND_API_KEY?: string; // geheim: voor e-mails (optioneel tot het domein er is)
   MAIL_FROM?: string; // bijv. "KNOOPZ <bestellingen@knoopz.nl>"
   MAIL_REPLY_TO?: string; // bijv. "info@knoopz.nl"
+  POSTNL_API_KEY?: string; // geheim: API-sleutel van PostNL (developer.postnl.nl)
+  POSTNL_CUSTOMER_CODE?: string; // bijv. "DEVC" (4 letters, staat in je PostNL-contract)
+  POSTNL_CUSTOMER_NUMBER?: string; // bijv. "11223344"
+  POSTNL_SANDBOX?: string; // "1" = testomgeving van PostNL
+  CRON_SECRET?: string; // geheim: voor automatisch "bezorgd" controleren via een externe cron
   // Alleen voor lokale tests:
   MOLLIE_API_BASE?: string;
   RESEND_API_BASE?: string;
+  POSTNL_API_BASE?: string;
 }
 
 export const json = (data: unknown, status = 200) =>

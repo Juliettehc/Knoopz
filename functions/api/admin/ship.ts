@@ -19,7 +19,7 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: E
   if (body?.notify !== false && mailEnabled(env)) {
     const o = await rpc<Order>(env, 'order_by_id', { p_order: orderId });
     if (o) {
-      const m = shippedMail(o);
+      const m = await shippedMail(env, o, new URL(request.url).origin);
       mailed = await sendMail(env, o.email, m.subject, m.html);
     }
   }
