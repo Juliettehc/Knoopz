@@ -7,7 +7,7 @@ const { lang } = Astro.props;
 const other: Lang = lang === 'nl' ? 'en' : 'nl';
 const L = Object.fromEntries(Object.entries(ui[lang]).filter(([k]) => k.startsWith('checkout.') || k.startsWith('err.')));
 ---
-<Base lang={lang} title={t(lang, 'checkout.title')} alternate={routes.checkout[other]}>
+<Base lang={lang} title={t(lang, 'checkout.title')} alternate={routes.checkout[other]} noindex>
   <section class="wrap section co" data-checkout data-lang={lang}>
     <h1 class="h2">{t(lang, 'checkout.title')}</h1>
 

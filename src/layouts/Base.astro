@@ -10,12 +10,21 @@ interface Props {
   title?: string;
   description?: string;
   alternate: string; // dezelfde pagina in de andere taal
+  image?: string; // voorbeeldfoto bij delen (Facebook, WhatsApp, ...)
+  noindex?: boolean; // afrekenen, bedankt, 404: niet in Google
 }
-const { lang, title, description, alternate } = Astro.props;
+const { lang, title, description, alternate, image, noindex = false } = Astro.props;
 const fullTitle = title ? `${title} · KNOOPZ` : 'KNOOPZ';
 const desc =
   description ??
   (lang === 'nl' ? 'KNOOPZ maakt unieke statement pieces met vintage knopen.' : 'KNOOPZ makes one-of-a-kind statement pieces with vintage buttons.');
+// Altijd naar knoopz.nl verwijzen, ook als de pagina via www of pages.dev bekeken wordt
+const site = Astro.site ?? new URL('https://knoopz.nl');
+const canonical = new URL(Astro.url.pathname, site).href;
+const alt = new URL(alternate, site).href;
+const nlUrl = lang === 'nl' ? canonical : alt;
+const enUrl = lang === 'en' ? canonical : alt;
+const ogImage = new URL(image ?? '/knoopz-logo.png', site).href;
 ---
 <!doctype html>
 <html lang={lang}>
@@ -24,11 +33,20 @@ const desc =
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{fullTitle}</title>
     <meta name="description" content={desc} />
-    <!-- Testversie: niet laten indexeren door zoekmachines tot de lancering (fase 7) -->
-    <meta name="robots" content="noindex, nofollow" />
+    {noindex && <meta name="robots" content="noindex, follow" />}
+    <link rel="canonical" href={canonical} />
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <link rel="alternate" hreflang={lang === 'nl' ? 'en' : 'nl'} href={alternate} />
+    {!noindex && <link rel="alternate" hreflang="nl" href={nlUrl} />}
+    {!noindex && <link rel="alternate" hreflang="en" href={enUrl} />}
+    {!noindex && <link rel="alternate" hreflang="x-default" href={nlUrl} />}
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="KNOOPZ" />
+    <meta property="og:title" content={fullTitle} />
+    <meta property="og:description" content={desc} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:locale" content={lang === 'nl' ? 'nl_NL' : 'en_GB'} />
     <meta name="theme-color" content="#F6F3EE" />
   </head>
   <body>

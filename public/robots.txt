@@ -1,2 +1,5 @@
 User-agent: *
 Disallow: /admin/
+Disallow: /api/
+
+Sitemap: https://knoopz.nl/sitemap.xml

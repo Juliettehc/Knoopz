@@ -27,7 +27,7 @@ const sh = catalog.shipping;
 const shipCosts = sh.nl === null ? '' :
   `${t(lang, 'ship.costs')}: ${t(lang, 'ship.nl')} ${sh.nl === 0 ? t(lang, 'ship.freeAlways') : formatPrice(lang, sh.nl)}` + (sh.freeFrom ? `. ${t(lang, 'ship.free').replace('{v}', formatPrice(lang, sh.freeFrom))}.` : '.');
 ---
-<Base lang={lang} title={p.name[lang]} alternate={productPath(other, p.slug)}>
+<Base lang={lang} title={p.name[lang]} alternate={productPath(other, p.slug)} image={main?.large}>
   <div class="wrap crumbs muted">
     <a href={routes.shop[lang]}>{t(lang, 'nav.shop')}</a>
     {drop && (
