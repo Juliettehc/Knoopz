@@ -86,7 +86,8 @@ const tiles = Array.from({ length: 6 }, (_, i) => img[`insta_${i + 1}`]);
 </Base>
 
 <style>
-  .hero { position: relative; min-height: min(680px, 82vh); align-items: flex-end; justify-content: stretch; padding: 0; text-transform: none; letter-spacing: normal; font-size: inherit; color: var(--ink); text-align: left; }
+  /* Campagnefoto vult het hele scherm onder de headerbalk */
+  .hero { position: relative; min-height: calc(100vh - var(--header-h)); min-height: calc(100svh - var(--header-h)); align-items: flex-end; justify-content: stretch; padding: 0; text-transform: none; letter-spacing: normal; font-size: inherit; color: var(--ink); text-align: left; }
   .hero-ph { position: absolute; top: 24px; left: var(--gutter); font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ph-ink); }
   .hero-img { display: flex; overflow: hidden; background: var(--surface); }
   .hero-img picture { position: absolute; inset: 0; }
