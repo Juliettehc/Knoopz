@@ -380,6 +380,9 @@ async function viewProducts() {
 }
 
 // ---------- product: bewerken ----------
+// Verzendsoort: eigen keuze bij het product, anders volgens de categorie (overhemd = brievenbuspakje)
+const parcelOf = (p: any): 'package' | 'mailbox' => p?.parcel_type ?? (p?.category === 'overhemd' ? 'mailbox' : 'package');
+
 async function viewProduct(id: string | null) {
   app.innerHTML = '<p class="muted">Laden…</p>';
   let drops: Drop[] = [];
@@ -414,6 +417,12 @@ async function viewProduct(id: string | null) {
         <label class="a-field"><span>Categorie</span><select name="category">
           <option value="pet" ${p?.category !== 'overhemd' ? 'selected' : ''}>Pet</option>
           <option value="overhemd" ${p?.category === 'overhemd' ? 'selected' : ''}>Overhemd</option></select></label>
+      </div>
+      <div class="a-row">
+        <label class="a-field"><span>Verzending (PostNL)</span><select name="parcel_type">
+          <option value="package" ${parcelOf(p) === 'package' ? 'selected' : ''}>Pakket</option>
+          <option value="mailbox" ${parcelOf(p) === 'mailbox' ? 'selected' : ''}>Brievenbuspakje</option></select>
+          <small>Petten standaard als pakket, overhemden als brievenbuspakje. Zitten er meerdere stukken in één bestelling, dan wordt het een pakket zodra er één pakket bij zit.</small></label>
       </div>
       <div class="a-row">
         ${text('name_nl', 'Naam (NL)', { req: true })}
@@ -453,6 +462,12 @@ async function viewProduct(id: string | null) {
 
   const form = app.querySelector<HTMLFormElement>('[data-product]')!;
   const err = form.querySelector<HTMLElement>('[data-err]')!;
+  // Nieuw product: verzendsoort volgt de categorie (kan daarna nog worden aangepast)
+  if (!p) {
+    const cat = form.elements.namedItem('category') as HTMLSelectElement;
+    const parcel = form.elements.namedItem('parcel_type') as HTMLSelectElement;
+    cat.addEventListener('change', () => (parcel.value = cat.value === 'overhemd' ? 'mailbox' : 'package'));
+  }
   const slugInput = form.elements.namedItem('slug') as HTMLInputElement;
   let slugTouched = !!p?.slug;
   slugInput.addEventListener('input', () => (slugTouched = true));
@@ -476,6 +491,7 @@ async function viewProduct(id: string | null) {
         slug,
         drop_id: orNull(val(form, 'drop_id')),
         category: val(form, 'category') || 'pet',
+        parcel_type: val(form, 'parcel_type') === 'mailbox' ? 'mailbox' : 'package',
         name_nl: name,
         name_en: orNull(val(form, 'name_en')),
         description_nl: orNull(val(form, 'description_nl')),
@@ -489,9 +505,14 @@ async function viewProduct(id: string | null) {
         sort: parseInt(val(form, 'sort') || '0', 10) || 0,
       };
       const productId = p?.id ?? crypto.randomUUID();
-      const { error } = isNew
-        ? await sb.from('products').insert({ id: productId, ...row })
-        : await sb.from('products').update(row).eq('id', productId);
+      const save = (r: Record<string, unknown>) =>
+        isNew ? sb.from('products').insert({ id: productId, ...r }) : sb.from('products').update(r).eq('id', productId);
+      let { error } = await save(row);
+      // Migratie 012 (verzendsoort) nog niet uitgevoerd? Dan zonder dat veld opslaan.
+      if (error && /parcel_type/.test(error.message)) {
+        const { parcel_type, ...rest } = row;
+        ({ error } = await save(rest));
+      }
       if (error) throw error;
       const isSold = val(form, 'status') === 'sold';
       const { error: vErr } = await sb
@@ -1122,6 +1143,13 @@ async function viewOrder(id: string) {
   const addressText = `${o.first_name} ${o.last_name}\n${o.street}\n${o.postal_code} ${o.city}\n${countries[o.country] ?? o.country}`;
   const canShip = o.status === 'paid' || o.status === 'shipped';
   const hasLabel = !!o.postnl_barcode;
+  const PARCEL: Record<string, string> = { package: 'Pakket', mailbox: 'Brievenbuspakje' };
+  let parcel: 'package' | 'mailbox' = 'package';
+  const pids = (o.order_items as any[]).map((i) => i.product_id).filter(Boolean);
+  if (!hasLabel && pids.length) {
+    const { data: prods } = await sb.from('products').select('*').in('id', pids);
+    if (prods?.length === pids.length && prods.every((x) => parcelOf(x) === 'mailbox')) parcel = 'mailbox';
+  }
 
   app.innerHTML = `
     <p><a href="#/bestellingen">← Terug naar bestellingen</a></p>
@@ -1167,11 +1195,16 @@ async function viewOrder(id: string) {
         hasLabel
           ? `<dl class="a-dl">
         <div><dt>Status</dt><dd>${o.status === 'delivered' ? `<strong>Bezorgd</strong> · ${esc(dateTime(o.delivered_at))}` : 'Onderweg met PostNL'}</dd></div>
+        <div><dt>Soort</dt><dd>${esc(PARCEL[o.parcel_type] ?? '—')}</dd></div>
         <div><dt>Barcode</dt><dd>${esc(o.postnl_barcode)}</dd></div>
         <div><dt>Track &amp; trace</dt><dd>${o.tracking_url ? `<a href="${esc(o.tracking_url)}" target="_blank" rel="noopener">Open bij PostNL</a>` : '—'}</dd></div>
       </dl>
       <div class="a-buttons"><button class="btn btn-dark" type="button" data-pdf>Label downloaden (PDF)</button>${o.status === 'shipped' ? '<button class="btn btn-outline" type="button" data-track>Bezorgstatus controleren</button>' : ''}</div>`
           : `<p>Maak het PostNL-verzendlabel aan. Je krijgt direct een PDF om te printen, de bestelling gaat op <strong>verzonden</strong> en de klant krijgt de mail <em>"Je bestelling is onderweg"</em> met de track &amp; trace.</p>
+      <label class="a-field"><span>Verzenden als</span><select data-parcel>
+        <option value="package" ${parcel === 'package' ? 'selected' : ''}>Pakket</option>
+        <option value="mailbox" ${parcel === 'mailbox' ? 'selected' : ''}>Brievenbuspakje</option></select>
+        <small>Automatisch gekozen op basis van de producten; pas aan als het anders moet.</small></label>
       <div class="a-buttons"><button class="btn btn-dark" type="button" data-label>Label aanmaken</button></div>`
       }
     </div>
@@ -1203,11 +1236,12 @@ async function viewOrder(id: string) {
   });
   const labelBtn = app.querySelector<HTMLButtonElement>('[data-label]');
   labelBtn?.addEventListener('click', async () => {
-    if (!confirm(`Label aanmaken voor ${o.number}? De klant krijgt daarna direct de mail dat het pakket onderweg is.`)) return;
+    const chosen = app.querySelector<HTMLSelectElement>('[data-parcel]')!.value;
+    if (!confirm(`${PARCEL[chosen]}-label aanmaken voor ${o.number}? De klant krijgt daarna direct de mail dat het pakket onderweg is.`)) return;
     labelBtn.disabled = true;
     labelBtn.textContent = 'Label aanmaken…';
     try {
-      const r = await adminPost('/api/admin/label', { order_id: id });
+      const r = await adminPost('/api/admin/label', { order_id: id, parcel: chosen });
       downloadPdf(r.pdf, `${o.number}-postnl-label.pdf`);
       toast(r.mailed ? 'Label aangemaakt en de klant is gemaild.' : r.mailEnabled === false ? 'Label aangemaakt. (E-mails zijn nog niet ingesteld.)' : 'Label aangemaakt.');
       viewOrder(id);

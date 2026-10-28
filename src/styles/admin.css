@@ -147,3 +147,4 @@ body.admin { background: var(--bg); }
   .a-mail-preview { position: static; }
   .a-mail-preview iframe { height: 640px; }
 }
+.a-ship .a-field { max-width: 360px; margin-bottom: 16px; }

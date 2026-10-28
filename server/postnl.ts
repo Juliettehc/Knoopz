@@ -36,9 +36,13 @@ const stamp = () => {
 };
 
 export type Sender = { company: string | null; street: string | null; house_nr: string | null; house_nr_ext: string | null; postal_code: string | null; city: string | null; weight_grams: number };
+export type Parcel = 'package' | 'mailbox';
 export type Recipient = { first_name: string; last_name: string; street: string; postal_code: string; city: string; country: string; email: string; number: string };
 
-export async function createLabel(env: Env, sender: Sender, to: Recipient) {
+// PostNL-productcodes: 3085 = standaard pakket, 2928 = brievenbuspakje (max. 2 kg), 4946 = pakket naar België
+export async function createLabel(env: Env, sender: Sender, to: Recipient, parcel: Parcel = 'package') {
+  if (parcel === 'mailbox' && to.country !== 'NL') parcel = 'package';
+  const weight = parcel === 'mailbox' ? Math.min(sender.weight_grams || 1000, 2000) : sender.weight_grams || 1000;
   const addr = splitStreet(to.street);
   if (!addr) throw new Error(`Huisnummer niet gevonden in "${to.street}". Pas het adres aan in Supabase of maak het label handmatig.`);
   if (!sender.street || !sender.house_nr || !sender.postal_code || !sender.city) throw new Error('Vul eerst het afzenderadres in bij Instellingen.');
@@ -84,9 +88,9 @@ export async function createLabel(env: Env, sender: Sender, to: Recipient) {
           ],
           Barcode: barcode,
           Contacts: [{ ContactType: '01', Email: to.email }],
-          Dimension: { Weight: String(sender.weight_grams || 1000) },
+          Dimension: { Weight: String(weight) },
           Reference: to.number,
-          ProductCodeDelivery: to.country === 'BE' ? '4946' : '3085',
+          ProductCodeDelivery: to.country === 'BE' ? '4946' : parcel === 'mailbox' ? '2928' : '3085',
         },
       ],
     }),
@@ -94,7 +98,7 @@ export async function createLabel(env: Env, sender: Sender, to: Recipient) {
   const shipment = body?.ResponseShipments?.[0];
   const pdf: string | undefined = shipment?.Labels?.[0]?.Content;
   if (!pdf) throw new Error('PostNL gaf geen label terug');
-  return { barcode: (shipment.Barcode as string) || barcode, pdf, url: trackingUrl(barcode, to.country, to.postal_code) };
+  return { barcode: (shipment.Barcode as string) || barcode, pdf, url: trackingUrl(barcode, to.country, to.postal_code), parcel };
 }
 
 // Bezorgd? PostNL fase 4 = "Afgeleverd" (statuscode 11).

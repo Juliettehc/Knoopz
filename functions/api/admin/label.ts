@@ -3,7 +3,7 @@
 import { json, UUID, type Env } from '../../../server/env';
 import { rpc, isAdmin } from '../../../server/supabase';
 import { sendMail, shippedMail, mailEnabled, type Order } from '../../../server/mail';
-import { createLabel, postnlEnabled, type Sender } from '../../../server/postnl';
+import { createLabel, postnlEnabled, type Sender, type Parcel } from '../../../server/postnl';
 
 export const onRequestPost = async ({ request, env }: { request: Request; env: Env }) => {
   const token = (request.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '');
@@ -24,7 +24,11 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: E
   let label;
   try {
     const sender = await rpc<Sender>(env, 'shipping_sender_get', {});
-    label = await createLabel(env, sender, o);
+    // Pakket of brievenbuspakje: gekozen in het beheer, anders volgens de producten in de bestelling
+    const parcel: Parcel = body?.parcel === 'mailbox' || body?.parcel === 'package'
+      ? body.parcel
+      : await rpc<Parcel>(env, 'order_parcel_type', { p_order: orderId }).catch(() => 'package' as Parcel);
+    label = await createLabel(env, sender, o, parcel);
   } catch (e) {
     console.error(e);
     return json({ error: 'postnl', message: e instanceof Error ? e.message : String(e) }, 502);
@@ -32,6 +36,7 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: E
 
   const r = await rpc(env, 'save_label', { p_order: orderId, p_barcode: label.barcode, p_tracking: label.url, p_pdf: label.pdf });
   if (r?.error) return json(r, 400);
+  await rpc(env, 'set_order_parcel_type', { p_order: orderId, p_type: label.parcel }).catch((e) => console.error(e));
 
   let mailed = false;
   if (mailEnabled(env)) {
