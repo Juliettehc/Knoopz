@@ -20,7 +20,7 @@ export const richText = (s: string | null | undefined): string => {
       const type = /^\d/.test(l) ? 'ol' : 'ul';
       if (list.length && type !== listType) flush();
       listType = type;
-      list.push(l.replace(/^([-•*]|\d+[.)]) /, ''));
+      list.push(l.replace(/^([-•*]|\d+[.)]) /, '').trim());
     } else {
       flush();
       out.push(rich(line));
