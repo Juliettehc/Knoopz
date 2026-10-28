@@ -1,5 +1,5 @@
 ---
-import { rich } from '../lib/rich';
+import { rich, textBlocks } from '../lib/rich';
 import Base from '../layouts/Base.astro';
 import ProductCard from '../components/ProductCard.astro';
 import { t, routes, dropPath, type Lang } from '../i18n/ui';
@@ -57,7 +57,7 @@ const tiles = Array.from({ length: 6 }, (_, i) => img[`insta_${i + 1}`]);
       <div class="story-text">
         <span class="eyebrow">{t(lang, 'home.about')}</span>
         <h2 class="h2" set:html={rich(tx('story_title') ?? `[${nl ? 'Kop merkverhaal' : 'Brand story heading'}]`)} />
-        <p class="lead" set:html={rich(tx('story_text') ?? `[${nl ? 'Twee zinnen over de vintage knopen. Tekst van jullie.' : 'Two sentences about the vintage buttons.'}]`)} />
+        {textBlocks(tx('story_text') ?? `[${nl ? 'Twee zinnen over de vintage knopen. Tekst van jullie.' : 'Two sentences about the vintage buttons.'}]`, 'lead').map(({ Tag, cls, html }) => <Tag class={cls} set:html={html} />)}
         <a class="link-line" href={routes.about[lang]}>{t(lang, 'home.readStory')}</a>
       </div>
     </div>

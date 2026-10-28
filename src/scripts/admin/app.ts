@@ -5,6 +5,9 @@ import { createClient, type Session } from '@supabase/supabase-js';
 import { SUPABASE_URL, SUPABASE_KEY, IMAGE_BUCKET, publicImageUrl } from '../../lib/supabase-config';
 import { resizeImage } from './images';
 
+// Uitleg over tekstopmaak, overal hetzelfde (zie textBlocks in lib/rich.ts)
+const FORMAT_HELP = 'Opmaak in lange teksten: <strong>**woord**</strong> = dikgedrukt, een regel met <strong>## </strong> = tussenkop, <strong>- </strong> = opsomming met knoopjes, <strong>1. </strong> = genummerde lijst, witregel = nieuwe alinea.';
+
 // Uitnodigings- of herstellink? Dit moet gelezen worden vóórdat Supabase de link verwerkt.
 const linkParams = new URLSearchParams(location.hash.startsWith('#/') ? '' : location.hash.slice(1));
 let pendingPasswordSetup = ['invite', 'recovery', 'signup'].includes(linkParams.get('type') || '');
@@ -395,7 +398,7 @@ async function viewProduct(id: string | null) {
 
   const text = (name: string, label: string, opts: { req?: boolean; hint?: string } = {}) =>
     `<label class="a-field"><span>${label}${opts.req ? ' *' : ''}</span><input name="${name}" value="${esc(p?.[name])}" ${opts.req ? 'required' : ''} />${opts.hint ? `<small>${opts.hint}</small>` : ''}</label>`;
-  const area = (name: string, label: string) => `<label class="a-field"><span>${label}</span><textarea name="${name}">${esc(p?.[name])}</textarea></label>`;
+  const area = (name: string, label: string) => `<label class="a-field"><span>${label}</span><textarea name="${name}">${esc(p?.[name])}</textarea><small>${FORMAT_HELP}</small></label>`;
 
   app.innerHTML = `
     <p><a href="#/producten">← Terug naar producten</a></p>
@@ -653,7 +656,7 @@ async function viewDrops() {
         <label class="a-field"><span>Naam (EN)</span><input name="name_en" value="${esc(d?.name_en)}" /></label>
       </div>
       <div class="a-row">
-        <label class="a-field"><span>Introtekst (NL)</span><textarea name="intro_nl">${esc(d?.intro_nl)}</textarea></label>
+        <label class="a-field"><span>Introtekst (NL)</span><textarea name="intro_nl">${esc(d?.intro_nl)}</textarea><small>${FORMAT_HELP}</small></label>
         <label class="a-field"><span>Introtekst (EN)</span><textarea name="intro_en">${esc(d?.intro_en)}</textarea></label>
       </div>
       <div class="a-row">
@@ -1109,7 +1112,7 @@ const SHIP_CFG: SitePageCfg = {
 const legalCfg = (route: string, prefix: string, title: string, ph: string): SitePageCfg => ({
   route,
   title,
-  note: 'Opmaak: begin een regel met "## " voor een tussenkop en met "- " voor een opsommingsteken of met "1. " voor een genummerde lijst (de nummers gaan vanzelf). Laat een witregel tussen alinea\'s.',
+  note: 'Pas hier de tekst van deze pagina aan.',
   sql: '009_verzending_retour.sql',
   sections: [
     {
@@ -1200,7 +1203,7 @@ async function viewSitePage(cfg: SitePageCfg) {
 
   app.innerHTML = `
     <h1>${esc(cfg.title)}</h1>
-    <p class="a-note">${esc(cfg.note)} Dikgedrukt: zet twee sterretjes om een woord, bijv. <strong>**14 dagen**</strong>. ${allSlots.length ? "Foto's worden automatisch verkleind. " : ''}Klik daarna op <strong>Wijzigingen publiceren</strong>.</p>
+    <p class="a-note">${esc(cfg.note)} ${FORMAT_HELP} ${allSlots.length ? "Foto's worden automatisch verkleind. " : ''}Klik daarna op <strong>Wijzigingen publiceren</strong>.</p>
     ${msgs}
     <form data-texts novalidate>
       ${cfg.sections
@@ -1316,7 +1319,7 @@ async function viewFaq() {
 
   app.innerHTML = `
     <h1>FAQ</h1>
-    <p class="a-note">Veelgestelde vragen voor de pagina FAQ. Dikgedrukt in een antwoord: zet twee sterretjes om een woord, bijv. <strong>**gratis**</strong>. Engels leeg = de Nederlandse tekst wordt gebruikt. Klik na het aanpassen op <strong>Wijzigingen publiceren</strong>.</p>
+    <p class="a-note">Veelgestelde vragen voor de pagina FAQ. ${FORMAT_HELP} Engels leeg = de Nederlandse tekst wordt gebruikt. Klik na het aanpassen op <strong>Wijzigingen publiceren</strong>.</p>
     ${items.length ? items.map((it, i) => form(it, i)).join('') : '<p class="a-note">Nog geen vragen.</p>'}
     <h2>Nieuwe vraag</h2>
     ${form(null, items.length)}`;

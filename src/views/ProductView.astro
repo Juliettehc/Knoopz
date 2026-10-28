@@ -1,5 +1,5 @@
 ---
-import { rich, richText } from '../lib/rich';
+import { rich, textBlocks } from '../lib/rich';
 import Base from '../layouts/Base.astro';
 import ProductCard from '../components/ProductCard.astro';
 import { t, formatPrice, routes, dropPath, productPath, type Lang } from '../i18n/ui';
@@ -92,20 +92,20 @@ const shipCosts = sh.nl === null ? '' :
         {t(lang, 'product.add')}
       </button>
       <button type="button" class="btn btn-block" disabled data-sold-show hidden={!sold}>{soldLabel}</button>
-      {p.description[lang] && <div class="desc" set:html={richText(p.description[lang])} />}
+      {p.description[lang] && <div class="desc">{textBlocks(p.description[lang]).map(({ Tag, cls, html }) => <Tag class={cls} set:html={html} />)}</div>}
       {shipShort && <span class="muted small">{shipShort}</span>}
       <div class="acc">
         <details open>
           <summary>{t(lang, 'product.details')}</summary>
-          <div class="acc-text" set:html={richText(text(p.details[lang], nl ? '[Materiaal, pasvorm, verzorging.]' : '[Material, fit, care.]'))} />
+          {textBlocks(text(p.details[lang], nl ? '[Materiaal, pasvorm, verzorging.]' : '[Material, fit, care.]')).map(({ Tag, cls, html }) => <Tag class={cls} set:html={html} />)}
         </details>
         <details>
           <summary>{t(lang, 'product.button')}</summary>
-          <div class="acc-text" set:html={richText(text(p.buttonStory[lang], nl ? '[Herkomst en verhaal van de vintage knoop op deze pet.]' : '[Origin and story of the vintage button on this cap.]'))} />
+          {textBlocks(text(p.buttonStory[lang], nl ? '[Herkomst en verhaal van de vintage knoop op deze pet.]' : '[Origin and story of the vintage button on this cap.]')).map(({ Tag, cls, html }) => <Tag class={cls} set:html={html} />)}
         </details>
         <details>
           <summary>{t(lang, 'product.shipping')}</summary>
-          {shipText && <div class="acc-text" set:html={richText(shipText)} />}
+          {shipText && {textBlocks(shipText).map(({ Tag, cls, html }) => <Tag class={cls} set:html={html} />)}}
           {shipCosts && <p set:html={rich(shipCosts)} />}
           <p><a href={routes.shipping[lang]}>{t(lang, 'ship.more')}</a></p>
         </details>
@@ -147,8 +147,8 @@ const shipCosts = sh.nl === null ? '' :
   .pay[hidden] { display: none; }
   .pay-label { font-size: 13px; }
   .pay-ideal { width: 44px; height: 44px; flex: none; border-radius: 6px; }
-  .desc { margin: 0; font-size: 16px; line-height: 1.7; white-space: pre-line; }
-  .acc p, .acc-text { white-space: pre-line; }
+  .desc { display: flex; flex-direction: column; gap: 12px; font-size: 16px; line-height: 1.7; }
+  .desc p { margin: 0; }
   .small { font-size: 13px; }
   .stack { display: flex; flex-direction: column; gap: 32px; }
   @media (max-width: 760px) {

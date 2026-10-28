@@ -1,5 +1,5 @@
 ---
-import { rich } from '../lib/rich';
+import { rich, textBlocks } from '../lib/rich';
 import Base from '../layouts/Base.astro';
 import { t, routes, formatPrice, type Lang } from '../i18n/ui';
 import { loadCatalog } from '../data/catalog';
@@ -9,16 +9,15 @@ const { lang } = Astro.props;
 const other: Lang = lang === 'nl' ? 'en' : 'nl';
 const { texts, shipping: sh } = await loadCatalog();
 const tx = (key: string) => texts[key]?.[lang] ?? '';
-const paras = (s: string) => s.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
 const title = tx('ship_title') || t(lang, 'ship.title');
 const intro = tx('ship_intro');
-const blocks = [1, 2, 3, 4].map((n) => ({ title: tx(`ship_${n}_title`), text: paras(tx(`ship_${n}_text`)) })).filter((b) => b.title || b.text.length);
+const blocks = [1, 2, 3, 4].map((n) => ({ title: tx(`ship_${n}_title`), text: tx(`ship_${n}_text`).trim() })).filter((b) => b.title || b.text);
 const cost = (c: number | null) => (c === 0 ? t(lang, 'ship.freeAlways') : formatPrice(lang, c));
 ---
 <Base lang={lang} title={title} alternate={routes.shipping[other]}>
   <section class="wrap section sh">
     <h1 class="h1">{title}</h1>
-    {intro && paras(intro).map((p) => <p class="lead" set:html={rich(p)} />)}
+    {intro && {textBlocks(intro, 'lead').map(({ Tag, cls, html }) => <Tag class={cls} set:html={html} />)}}
 
     {sh.nl !== null && (
       <div class="sh-costs">
@@ -34,7 +33,7 @@ const cost = (c: number | null) => (c === 0 ? t(lang, 'ship.freeAlways') : forma
       blocks.map((b) => (
         <div class="sh-block">
           {b.title && <h2 class="h3" set:html={rich(b.title)} />}
-          {b.text.map((p) => <p set:html={rich(p)} />)}
+          {textBlocks(b.text).map(({ Tag, cls, html }) => <Tag class={cls} set:html={html} />)}
         </div>
       ))
     ) : (

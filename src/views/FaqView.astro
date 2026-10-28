@@ -1,5 +1,5 @@
 ---
-import { rich } from '../lib/rich';
+import { textBlocks } from '../lib/rich';
 import Base from '../layouts/Base.astro';
 import { t, routes, type Lang } from '../i18n/ui';
 import { loadCatalog } from '../data/catalog';
@@ -8,7 +8,6 @@ interface Props { lang: Lang }
 const { lang } = Astro.props;
 const other: Lang = lang === 'nl' ? 'en' : 'nl';
 const { faq } = await loadCatalog();
-const paras = (s: string) => s.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
 ---
 <Base lang={lang} title={t(lang, 'faq.title')} alternate={routes.faq[other]}>
   <section class="wrap section fq">
@@ -18,7 +17,7 @@ const paras = (s: string) => s.split(/\n\s*\n/).map((p) => p.trim()).filter(Bool
         {faq.map((item) => (
           <details>
             <summary>{item.q[lang]}</summary>
-            {paras(item.a[lang]).map((p) => <p set:html={rich(p)} />)}
+            {textBlocks(item.a[lang]).map(({ Tag, cls, html }) => <Tag class={cls} set:html={html} />)}
           </details>
         ))}
       </div>

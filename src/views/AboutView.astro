@@ -1,5 +1,5 @@
 ---
-import { rich } from '../lib/rich';
+import { rich, textBlocks } from '../lib/rich';
 import Base from '../layouts/Base.astro';
 import { t, routes, type Lang } from '../i18n/ui';
 import { loadCatalog } from '../data/catalog';
@@ -9,12 +9,11 @@ const { lang } = Astro.props;
 const other: Lang = lang === 'nl' ? 'en' : 'nl';
 const { site, texts } = await loadCatalog();
 const tx = (key: string) => texts[key]?.[lang] ?? '';
-const paras = (s: string) => s.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
 const title = tx('about_title') || (lang === 'nl' ? 'Over KNOOPZ' : 'About KNOOPZ');
 const intro = tx('about_intro');
 const blocks = [1, 2, 3]
-  .map((n) => ({ title: tx(`about_${n}_title`), text: paras(tx(`about_${n}_text`)), img: site[`about_${n}`] }))
-  .filter((b) => b.title || b.text.length || b.img);
+  .map((n) => ({ title: tx(`about_${n}_title`), text: tx(`about_${n}_text`).trim(), img: site[`about_${n}`] }))
+  .filter((b) => b.title || b.text || b.img);
 const hero = site.about_hero;
 const empty = !intro && blocks.length === 0 && !hero;
 ---
@@ -24,7 +23,7 @@ const empty = !intro && blocks.length === 0 && !hero;
       <div class="ab-head-text">
         <span class="eyebrow">KNOOPZ</span>
         <h1 class="h1">{title}</h1>
-        {intro ? paras(intro).map((p) => <p class="lead ab-intro" set:html={rich(p)} />) : empty && <p class="lead">{t(lang, 'page.soon')}</p>}
+        {intro ? {textBlocks(intro, 'lead ab-intro').map(({ Tag, cls, html }) => <Tag class={cls} set:html={html} />)} : empty && <p class="lead">{t(lang, 'page.soon')}</p>}
       </div>
       {hero && <img class="ab-head-photo" src={hero.url} alt={hero.alt[lang]} fetchpriority="high" decoding="async" />}
     </header>
@@ -34,7 +33,7 @@ const empty = !intro && blocks.length === 0 && !hero;
         {b.img && <img class="ab-img" src={b.img.url} alt={b.img.alt[lang]} loading="lazy" decoding="async" />}
         <div class="ab-text">
           {b.title && <h2 class="h2" set:html={rich(b.title)} />}
-          {b.text.map((p) => <p set:html={rich(p)} />)}
+          {textBlocks(b.text).map(({ Tag, cls, html }) => <Tag class={cls} set:html={html} />)}
         </div>
       </div>
     ))}
