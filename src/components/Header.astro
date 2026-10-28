@@ -4,9 +4,7 @@ import { loadCatalog } from '../data/catalog';
 
 interface Props { lang: Lang; alternate: string }
 const { lang, alternate } = Astro.props;
-const { drops, products } = await loadCatalog();
-// Foto in het Shop-menu: eigen dropfoto, anders de hoofdfoto van het eerste product in die drop.
-const dropImage = (id: string, own: string | null) => own ?? products.find((p) => p.dropId === id && p.images.length)?.images[0].small ?? null;
+const { drops } = await loadCatalog();
 const nlHref = lang === 'nl' ? Astro.url.pathname : alternate;
 const enHref = lang === 'en' ? Astro.url.pathname : alternate;
 ---
@@ -17,27 +15,8 @@ const enHref = lang === 'en' ? Astro.url.pathname : alternate;
         <svg width="22" height="14" viewBox="0 0 22 14" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M0 1h22M0 7h22M0 13h22" /></svg>
       </button>
       <nav class="nav-desktop label" aria-label={t(lang, 'nav.main')}>
-        <div class="nav-shop" data-shop>
-          <a class="nav-link" href={routes.shop[lang]} aria-expanded="false" aria-controls="mega" data-shop-toggle>{t(lang, 'nav.shop')}</a>
-          <div class="mega" id="mega" hidden data-mega>
-            <div class="wrap mega-inner">
-              <div class="mega-col">
-                <a class="mega-home" href={routes.home[lang]}>{t(lang, 'nav.home')}</a>
-                <span class="eyebrow">{t(lang, 'nav.shop')}</span>
-                <a href={routes.shop[lang]}>{t(lang, 'nav.allProducts')}</a>
-                {drops.map((d) => <a href={dropPath(lang, d.slug)}>{d.name[lang]}</a>)}
-              </div>
-              {drops.map((d) => (
-                <a class="mega-tile" href={dropPath(lang, d.slug)}>
-                  {dropImage(d.id, d.image)
-                    ? <img class="mega-img" src={dropImage(d.id, d.image)} alt="" loading="lazy" />
-                    : <div class="ph" style="aspect-ratio: 4 / 3"><span>[{d.name[lang]}]</span></div>}
-                  <span class="label">{d.name[lang]}</span>
-                </a>
-              ))}
-            </div>
-          </div>
-        </div>
+        <a class="nav-link" href={routes.home[lang]}>{t(lang, 'nav.home')}</a>
+        <a class="nav-link" href={routes.shop[lang]}>{t(lang, 'nav.shop')}</a>
         <a class="nav-link" href={routes.about[lang]}>{t(lang, 'nav.about')}</a>
         <a class="nav-link" href={routes.contact[lang]}>{t(lang, 'nav.contact')}</a>
       </nav>
@@ -58,7 +37,6 @@ const enHref = lang === 'en' ? Astro.url.pathname : alternate;
       </button>
     </div>
   </div>
-  <div class="mega-backdrop" hidden data-mega-backdrop></div>
 </header>
 
 <div class="mobile-menu" id="mobile-menu" hidden data-menu>
@@ -96,30 +74,15 @@ const enHref = lang === 'en' ? Astro.url.pathname : alternate;
   .hdr-side { display: flex; align-items: center; min-width: 0; }
   .hdr-right { justify-content: flex-end; gap: 24px; }
   .logo img { height: 24px; width: auto; }
-  .nav-desktop { display: flex; gap: 28px; align-items: center; align-self: stretch; }
-  /* Het Shop-vak loopt door tot de onderkant van de balk, zodat de muis het uitklapmenu kan bereiken zonder dat het sluit */
-  .nav-shop { align-self: stretch; display: flex; align-items: center; }
-  .hdr-side:first-child { align-self: stretch; }
+  .nav-desktop { display: flex; gap: 28px; align-items: center; }
   .nav-link { background: none; border: 0; padding: 0; text-decoration: none; font: inherit; letter-spacing: inherit; text-transform: inherit; min-height: 44px; display: inline-flex; align-items: center; gap: 6px; }
   .nav-link:hover { text-decoration: underline; text-underline-offset: 6px; }
-  .caret { font-size: 10px; }
-  .nav-link[aria-expanded='true'] { text-decoration: underline; text-underline-offset: 6px; }
   .lang-switch { display: flex; gap: 6px; align-items: center; }
   .lang-switch a { text-decoration: none; color: var(--muted); }
   .lang-switch a[aria-current] { color: var(--ink); }
   .cart-btn { background: none; border: 0; padding: 0; min-height: 44px; font: inherit; letter-spacing: inherit; text-transform: inherit; }
   .icon-btn { width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; background: none; border: 0; padding: 0; }
   .burger { display: none; margin-left: -12px; }
-
-  .mega { position: absolute; left: 0; right: 0; top: 100%; background: var(--bg); border-bottom: 1px solid var(--line); z-index: 41; text-transform: none; letter-spacing: normal; font-weight: 400; }
-  .mega-inner { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 32px; padding-top: 36px; padding-bottom: 36px; }
-  .mega-col { display: flex; flex-direction: column; gap: 14px; font-size: 15px; }
-  .mega-col a, .mega-tile { text-decoration: none; }
-  .mega-col a:hover { text-decoration: underline; text-underline-offset: 4px; }
-  .mega-home { margin-bottom: 18px; }
-  .mega-tile { display: flex; flex-direction: column; gap: 10px; }
-  .mega-img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; display: block; background: var(--surface, #f2f0ec); }
-  .mega-backdrop { position: fixed; inset: 0; top: var(--header-h); background: rgba(20, 20, 20, 0.25); z-index: 39; }
 
   .mobile-menu { position: fixed; inset: 0; z-index: 60; background: var(--bg); display: flex; flex-direction: column; overflow-y: auto; }
   .mobile-menu[hidden] { display: none; }
@@ -140,7 +103,7 @@ const enHref = lang === 'en' ? Astro.url.pathname : alternate;
   .mm-lang a[aria-current] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
 
   @media (max-width: 760px) {
-    .nav-desktop, .lang-switch, .mega, .mega-backdrop { display: none !important; }
+    .nav-desktop, .lang-switch { display: none !important; }
     .burger { display: inline-flex; }
     .logo img { height: 18px; }
     .hdr-right { font-size: 10px; letter-spacing: 0.1em; }
@@ -149,30 +112,6 @@ const enHref = lang === 'en' ? Astro.url.pathname : alternate;
 </style>
 
 <script>
-  const shop = document.querySelector<HTMLElement>('[data-shop]');
-  const toggle = document.querySelector<HTMLAnchorElement>('[data-shop-toggle]');
-  const mega = document.querySelector<HTMLElement>('[data-mega]');
-  const backdrop = document.querySelector<HTMLElement>('[data-mega-backdrop]');
-  const setMega = (open: boolean) => {
-    if (!toggle || !mega || !backdrop) return;
-    toggle.setAttribute('aria-expanded', String(open));
-    mega.hidden = !open;
-    backdrop.hidden = !open;
-  };
-  backdrop?.addEventListener('click', () => setMega(false));
-  if (window.matchMedia('(hover: hover)').matches) {
-    // Kleine vertraging bij sluiten: even buiten het menu komen met de muis sluit het niet meteen
-    let closeTimer: number | undefined;
-    shop?.addEventListener('mouseenter', () => {
-      clearTimeout(closeTimer);
-      setMega(true);
-    });
-    shop?.addEventListener('mouseleave', () => {
-      closeTimer = window.setTimeout(() => setMega(false), 250);
-    });
-    mega?.addEventListener('mouseenter', () => clearTimeout(closeTimer));
-  }
-
   const menu = document.querySelector<HTMLElement>('[data-menu]');
   const menuOpen = document.querySelector<HTMLButtonElement>('[data-menu-open]');
   const menuClose = document.querySelector<HTMLButtonElement>('[data-menu-close]');
@@ -188,7 +127,6 @@ const enHref = lang === 'en' ? Astro.url.pathname : alternate;
 
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
-    if (toggle?.getAttribute('aria-expanded') === 'true') { setMega(false); toggle.focus(); }
     if (menu && !menu.hidden) setMenu(false);
   });
 </script>
