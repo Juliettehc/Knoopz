@@ -92,6 +92,13 @@ const shipCosts = sh.nl === null ? '' :
         {t(lang, 'product.add')}
       </button>
       <button type="button" class="btn btn-block" disabled data-sold-show hidden={!sold}>{soldLabel}</button>
+      <div class="pay" data-sold-hide hidden={sold}>
+        <span class="pay-label">{nl ? 'Veilig betalen via Mollie' : 'Secure payment via Mollie'}</span>
+        <svg class="pay-ideal" viewBox="0 0 64 40" role="img" aria-label="iDEAL">
+          <rect x="0.5" y="0.5" width="63" height="39" rx="6" fill="#fff" stroke="#d9d4cc" />
+          <text x="32" y="26" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="15" font-weight="700"><tspan fill="#000">iD</tspan><tspan fill="#CC0066">EAL</tspan></text>
+        </svg>
+      </div>
       {p.description[lang] && <p class="desc" set:html={rich(p.description[lang])} />}
       {shipShort && <span class="muted small">{shipShort}</span>}
       <div class="acc">
@@ -139,6 +146,10 @@ const shipCosts = sh.nl === null ? '' :
   .title-block { display: flex; flex-direction: column; gap: 10px; }
   .price { font-size: 18px; }
   .facts { display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
+  .pay { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .pay[hidden] { display: none; }
+  .pay-label { font-size: 13px; }
+  .pay-ideal { width: 56px; height: 35px; flex: none; }
   .desc { margin: 0; font-size: 16px; line-height: 1.7; white-space: pre-line; }
   .acc p { white-space: pre-line; }
   .small { font-size: 13px; }
