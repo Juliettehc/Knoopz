@@ -18,7 +18,7 @@ const enHref = lang === 'en' ? Astro.url.pathname : alternate;
       </button>
       <nav class="nav-desktop label" aria-label={t(lang, 'nav.main')}>
         <div class="nav-shop" data-shop>
-          <button type="button" class="nav-link" aria-expanded="false" aria-controls="mega" data-shop-toggle>{t(lang, 'nav.shop')}</button>
+          <a class="nav-link" href={routes.shop[lang]} aria-expanded="false" aria-controls="mega" data-shop-toggle>{t(lang, 'nav.shop')}</a>
           <div class="mega" id="mega" hidden data-mega>
             <div class="wrap mega-inner">
               <div class="mega-col">
@@ -150,7 +150,7 @@ const enHref = lang === 'en' ? Astro.url.pathname : alternate;
 
 <script>
   const shop = document.querySelector<HTMLElement>('[data-shop]');
-  const toggle = document.querySelector<HTMLButtonElement>('[data-shop-toggle]');
+  const toggle = document.querySelector<HTMLAnchorElement>('[data-shop-toggle]');
   const mega = document.querySelector<HTMLElement>('[data-mega]');
   const backdrop = document.querySelector<HTMLElement>('[data-mega-backdrop]');
   const setMega = (open: boolean) => {
@@ -159,7 +159,6 @@ const enHref = lang === 'en' ? Astro.url.pathname : alternate;
     mega.hidden = !open;
     backdrop.hidden = !open;
   };
-  toggle?.addEventListener('click', () => setMega(toggle.getAttribute('aria-expanded') !== 'true'));
   backdrop?.addEventListener('click', () => setMega(false));
   if (window.matchMedia('(hover: hover)').matches) {
     // Kleine vertraging bij sluiten: even buiten het menu komen met de muis sluit het niet meteen
