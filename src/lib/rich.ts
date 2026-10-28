@@ -14,11 +14,14 @@ export const rich = (s: string | null | undefined): string => esc(s ?? '').repla
 // zodat de stijlen van die pagina (bijv. ".ab-text p") gewoon blijven werken.
 export type Block = { Tag: 'p' | 'h2' | 'ul' | 'ol'; cls?: string; html: string };
 
-const LIST = /^([-•*]|\d+[.)])\s+/;
+// Ook andere opsommingstekens (·, ◦, ▪, –, —) tellen mee
+const LIST = /^([-•*·◦▪▫●○–—]|\d+[.)])\s+/;
+// Onzichtbare tekens die mee komen bij plakken uit WhatsApp, Notities enz. (o.a. word joiner)
+const INVISIBLE = /[\u200B-\u200D\u2060\uFEFF]/g;
 
 export const textBlocks = (s: string | null | undefined, pClass?: string): Block[] => {
   const out: Block[] = [];
-  for (const chunk of (s ?? '').split(/\n\s*\n/)) {
+  for (const chunk of (s ?? '').replace(INVISIBLE, '').split(/\n\s*\n/)) {
     const lines = chunk.split('\n').map((l) => l.trim()).filter(Boolean);
     let para: string[] = [];
     let list: string[] = [];
