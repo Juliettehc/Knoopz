@@ -1033,7 +1033,7 @@ async function viewOrders() {
   app.innerHTML = '<p class="muted">Bestellingen laden…</p>';
   const { data, error } = await sb
     .from('orders')
-    .select('id,number,status,first_name,last_name,email,total_cents,created_at,paid_at,needs_attention,country,postnl_barcode')
+    .select('*') // ook als een migratie (bijv. 011 PostNL) nog niet is uitgevoerd
     .order('created_at', { ascending: false })
     .limit(500);
   if (error) return fail(error, 'Bestellingen laden');
