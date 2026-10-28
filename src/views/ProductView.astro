@@ -1,5 +1,5 @@
 ---
-import { rich } from '../lib/rich';
+import { rich, richText } from '../lib/rich';
 import Base from '../layouts/Base.astro';
 import ProductCard from '../components/ProductCard.astro';
 import { t, formatPrice, routes, dropPath, productPath, type Lang } from '../i18n/ui';
@@ -92,20 +92,20 @@ const shipCosts = sh.nl === null ? '' :
         {t(lang, 'product.add')}
       </button>
       <button type="button" class="btn btn-block" disabled data-sold-show hidden={!sold}>{soldLabel}</button>
-      {p.description[lang] && <p class="desc" set:html={rich(p.description[lang])} />}
+      {p.description[lang] && <div class="desc" set:html={richText(p.description[lang])} />}
       {shipShort && <span class="muted small">{shipShort}</span>}
       <div class="acc">
         <details open>
           <summary>{t(lang, 'product.details')}</summary>
-          <p set:html={rich(text(p.details[lang], nl ? '[Materiaal, pasvorm, verzorging.]' : '[Material, fit, care.]'))} />
+          <div class="acc-text" set:html={richText(text(p.details[lang], nl ? '[Materiaal, pasvorm, verzorging.]' : '[Material, fit, care.]'))} />
         </details>
         <details>
           <summary>{t(lang, 'product.button')}</summary>
-          <p set:html={rich(text(p.buttonStory[lang], nl ? '[Herkomst en verhaal van de vintage knoop op deze pet.]' : '[Origin and story of the vintage button on this cap.]'))} />
+          <div class="acc-text" set:html={richText(text(p.buttonStory[lang], nl ? '[Herkomst en verhaal van de vintage knoop op deze pet.]' : '[Origin and story of the vintage button on this cap.]'))} />
         </details>
         <details>
           <summary>{t(lang, 'product.shipping')}</summary>
-          {shipText && <p set:html={rich(shipText)} />}
+          {shipText && <div class="acc-text" set:html={richText(shipText)} />}
           {shipCosts && <p set:html={rich(shipCosts)} />}
           <p><a href={routes.shipping[lang]}>{t(lang, 'ship.more')}</a></p>
         </details>
@@ -148,7 +148,7 @@ const shipCosts = sh.nl === null ? '' :
   .pay-label { font-size: 13px; }
   .pay-ideal { width: 44px; height: 44px; flex: none; border-radius: 6px; }
   .desc { margin: 0; font-size: 16px; line-height: 1.7; white-space: pre-line; }
-  .acc p { white-space: pre-line; }
+  .acc p, .acc-text { white-space: pre-line; }
   .small { font-size: 13px; }
   .stack { display: flex; flex-direction: column; gap: 32px; }
   @media (max-width: 760px) {

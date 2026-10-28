@@ -136,7 +136,12 @@ body:not(.admin) .btn-dark[disabled] { background: var(--accent); opacity: 0.6; 
 .acc summary::-webkit-details-marker { display: none; }
 .acc summary::after { content: '+'; font-size: 18px; font-weight: 400; letter-spacing: 0; }
 .acc details[open] summary::after { content: '−'; }
-.acc p { margin: 0 0 20px; font-size: 15px; line-height: 1.7; color: var(--muted); }
+.acc p, .acc .acc-text { margin: 0 0 20px; font-size: 15px; line-height: 1.7; color: var(--muted); }
+/* Opsommingen met een klein knoopje in KNOOPZ-rood in plaats van een stip (teksten via richText) */
+.knoop-list { margin: 4px 0; padding-left: 26px; white-space: normal; display: flex; flex-direction: column; gap: 6px; }
+ul.knoop-list { list-style: none; }
+ul.knoop-list li { position: relative; }
+ul.knoop-list li::before { content: ''; position: absolute; left: -26px; top: 0.5em; width: 13px; height: 13px; background: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'><circle cx='10' cy='10' r='9' fill='%23a61f2e'/><circle cx='10' cy='10' r='6.2' fill='none' stroke='%23fff' stroke-opacity='.35' stroke-width='1'/><circle cx='7.6' cy='7.6' r='1.4' fill='%23fff'/><circle cx='12.4' cy='7.6' r='1.4' fill='%23fff'/><circle cx='7.6' cy='12.4' r='1.4' fill='%23fff'/><circle cx='12.4' cy='12.4' r='1.4' fill='%23fff'/></svg>") no-repeat center / contain; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }
