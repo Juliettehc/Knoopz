@@ -1112,6 +1112,16 @@ async function viewOrders() {
 
 const PAID = ['paid', 'shipped', 'delivered'];
 
+// Is PostNL ingesteld in Cloudflare? Zo niet, dan werkt verzenden zoals vroeger (handmatig).
+let postnlOn: Promise<boolean> | null = null;
+function postnlReady() {
+  postnlOn ??= sb.auth.getSession().then(async ({ data }) => {
+    const res = await fetch('/api/admin/config', { headers: { authorization: `Bearer ${data.session?.access_token ?? ''}` } });
+    return res.ok ? (await res.json()).postnl === true : false;
+  }).catch(() => false);
+  return postnlOn;
+}
+
 // POST naar een beheer-endpoint met het token van de ingelogde beheerder
 async function adminPost(url: string, body: unknown) {
   const { data } = await sb.auth.getSession();
@@ -1143,6 +1153,7 @@ async function viewOrder(id: string) {
   const addressText = `${o.first_name} ${o.last_name}\n${o.street}\n${o.postal_code} ${o.city}\n${countries[o.country] ?? o.country}`;
   const canShip = o.status === 'paid' || o.status === 'shipped';
   const hasLabel = !!o.postnl_barcode;
+  const usePostnl = hasLabel || (await postnlReady());
   const PARCEL: Record<string, string> = { package: 'Pakket', mailbox: 'Brievenbuspakje' };
   let parcel: 'package' | 'mailbox' = 'package';
   const pids = (o.order_items as any[]).map((i) => i.product_id).filter(Boolean);
@@ -1189,6 +1200,8 @@ async function viewOrder(id: string) {
     <p class="a-note">${o.vat_mode === 'kor' ? 'KOR: geen btw berekend.' : `Waarvan btw (21%): ${esc(euro(o.vat_cents))}`}</p>
     ${
       PAID.includes(o.status)
+        ? `${
+      usePostnl
         ? `<h2>Verzending</h2>
     <div class="a-card a-ship">
       ${
@@ -1207,15 +1220,17 @@ async function viewOrder(id: string) {
         <small>Automatisch gekozen op basis van de producten; pas aan als het anders moet.</small></label>
       <div class="a-buttons"><button class="btn btn-dark" type="button" data-label>Label aanmaken</button></div>`
       }
-    </div>
+    </div>`
+        : ''
+    }
     ${
       canShip && !hasLabel
-        ? `<details class="a-details"><summary>Zonder PostNL-label verzenden (handmatig)</summary>
+        ? `${usePostnl ? '<details class="a-details"><summary>Zonder PostNL-label verzenden (handmatig)</summary>' : '<h2>Verzending</h2>'}
     <form class="a-form a-card" data-ship novalidate>
       <label class="a-field"><span>Track &amp; trace-link (optioneel)</span><input name="tracking" type="url" placeholder="https://..." value="${esc(o.tracking_url)}" /></label>
       <label class="a-check"><input type="checkbox" name="notify" checked /> Stuur de klant een e-mail dat het pakket onderweg is</label>
-      <div class="a-buttons"><button class="btn btn-outline" type="submit">${o.status === 'shipped' ? 'Verzendgegevens bijwerken' : 'Markeer als verzonden'}</button></div>
-    </form></details>`
+      <div class="a-buttons"><button class="btn ${usePostnl ? 'btn-outline' : 'btn-dark'}" type="submit">${o.status === 'shipped' ? 'Verzendgegevens bijwerken' : 'Markeer als verzonden'}</button></div>
+    </form>${usePostnl ? '</details>' : ''}`
         : ''
     }`
         : ''
