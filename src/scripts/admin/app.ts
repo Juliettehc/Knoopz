@@ -919,7 +919,15 @@ async function viewEmails(key = 'confirmation', lang: 'nl' | 'en' = 'nl') {
         <p class="a-note" data-subject></p>
         <iframe title="Voorbeeld van de e-mail" data-preview></iframe>
       </div>
-    </div>`;
+    </div>
+    <h2>Testmails</h2>
+    <form class="a-form a-card" data-test novalidate>
+      <p class="a-note">Stuurt alle mails (Nederlands en Engels) met een voorbeeldbestelling naar dit adres, met de teksten zoals ze nu zijn opgeslagen.</p>
+      <div class="a-row">
+        <label class="a-field"><span>Naar</span><input name="to" type="email" value="knoopz.contact@gmail.com" /></label>
+        <div class="a-buttons" style="align-self:end"><button class="btn btn-dark" type="submit">Stuur testmails</button></div>
+      </div>
+    </form>`;
 
   const form = app.querySelector<HTMLFormElement>('[data-mail]')!;
   const frame = app.querySelector<HTMLIFrameElement>('[data-preview]')!;
@@ -962,6 +970,20 @@ async function viewEmails(key = 'confirmation', lang: 'nl' | 'en' = 'nl') {
     } catch (err) {
       fail(err, 'Opslaan');
     }
+  });
+  const test = app.querySelector<HTMLFormElement>('[data-test]')!;
+  test.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = test.querySelector<HTMLButtonElement>('button')!;
+    btn.disabled = true;
+    try {
+      const r = await adminPost('/api/admin/test-mail', { to: val(test, 'to') });
+      toast(r.ok ? `${r.sent} testmails verstuurd naar ${val(test, 'to')}.` : `${r.sent} van de ${r.total} testmails verstuurd.`, !r.ok);
+    } catch (err) {
+      const m = String((err as Error).message);
+      fail(m === 'mail_not_set' ? new Error('E-mail is nog niet ingesteld in Cloudflare (RESEND_API_KEY en MAIL_FROM).') : m === 'email' ? new Error('Vul een geldig e-mailadres in.') : err, 'Testmails');
+    }
+    btn.disabled = false;
   });
   app.querySelector('[data-reset]')?.addEventListener('click', async () => {
     if (!confirm('De standaardtekst terugzetten? Je eigen tekst voor deze mail verdwijnt.')) return;
