@@ -1321,16 +1321,17 @@ async function viewStats() {
     const funnelHtml = stepError
       ? '<p class="a-note">Voer eerst migratie 013_prullenbak_bezoekstappen.sql uit in Supabase, dan wordt dit bijgehouden.</p>'
       : `${table(
-          ['Stap', 'Aantal', '', 'Afgehaakt'],
+          ['Stap', 'Aantal', '', 'Hier gestopt'],
           funnel.map(([label, n], i) => {
             const pct = top ? Math.min(100, Math.round((n / top) * 100)) : 0;
-            const prev = i ? funnel[i - 1][1] : 0;
-            const lost = i && prev ? Math.max(0, Math.round(((prev - n) / prev) * 100)) : null;
-            return [label, String(n), `<span class="a-bar"><span style="width:${pct}%"></span></span>`, lost === null ? '' : `${lost}%`];
+            const next = funnel[i + 1];
+            const stopped = next && n ? Math.max(0, n - next[1]) : 0;
+            const stopHtml = stopped ? `${stopped} (${Math.round((stopped / n) * 100)}%)` : '';
+            return [label, String(n), `<span class="a-bar"><span style="width:${pct}%"></span></span>`, stopHtml];
           }),
           '',
         )}
-        <p class="a-note">Elke stap telt één keer per bezoek. "Afgehaakt" is het deel dat na de vorige stap niet verder ging. Het meten loopt sinds migratie 013 is uitgevoerd.</p>`;
+        <p class="a-note">Elke stap telt één keer per bezoek. "Hier gestopt" is hoeveel bezoekers bij deze stap weggingen zonder de volgende te halen. Het meten loopt sinds migratie 013 is uitgevoerd.</p>`;
 
     box.innerHTML = `
       <div class="a-stats">
