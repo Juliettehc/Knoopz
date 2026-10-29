@@ -1,5 +1,6 @@
 // Afrekenpagina: overzicht (live berekend door de database), gegevens invullen en naar Mollie.
 import { getCart, removeManyFromCart } from './cart';
+import { track } from './track';
 import { SUPABASE_URL, SUPABASE_KEY, publicImageUrl } from '../lib/supabase-config';
 
 type Quote = {
@@ -211,6 +212,7 @@ export function initCheckout() {
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.checkoutUrl) {
+        track('pay');
         try {
           localStorage.setItem(PENDING_KEY, data.token);
         } catch {}
@@ -244,5 +246,6 @@ export function initCheckout() {
     }
   });
 
+  if (getCart().length) track('checkout');
   loadQuote();
 }

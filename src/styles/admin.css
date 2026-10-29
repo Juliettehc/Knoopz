@@ -67,6 +67,14 @@ body.admin { background: var(--bg); }
 .a-stat .label { font-size: 11px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
 .a-stat strong { font-family: var(--font-head); font-weight: 500; font-size: 30px; line-height: 1.1; }
 .a-stat small { font-size: 12px; color: var(--muted); }
+.a-bar { display: block; width: 160px; max-width: 30vw; height: 8px; background: var(--surface); }
+.a-bar span { display: block; height: 100%; background: var(--ink); }
+.a-bulk { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; margin-bottom: 8px; min-height: 44px; }
+.a-bulk .a-buttons { margin-top: 0; }
+.a-bulk .btn { min-height: 40px; padding: 0 16px; }
+.a-table .a-sel { width: 36px; padding-right: 0; }
+.a-sel input { width: 18px; height: 18px; min-height: 0; margin: 0; accent-color: var(--ink); }
+.a-trash { margin-top: 32px; padding-top: 20px; border-top: 1px solid var(--line); }
 .a-pill.todo { background: var(--ink); border-color: var(--ink); color: var(--bg); }
 .a-main h1 .a-pill { vertical-align: middle; font-family: var(--font-body); margin-left: 8px; }
 .a-attention { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; justify-content: space-between; background: #fbeaea; border: 1px solid var(--accent); color: var(--accent); padding: 14px 18px; margin-bottom: 20px; font-size: 14px; }

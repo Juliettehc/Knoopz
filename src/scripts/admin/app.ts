@@ -1038,8 +1038,10 @@ async function viewOrders() {
     .order('created_at', { ascending: false })
     .limit(500);
   if (error) return fail(error, 'Bestellingen laden');
-  const rows = data as any[];
-  const counts = { todo: rows.filter((r) => r.status === 'paid').length };
+  let rows = data as any[];
+  const live = () => rows.filter((r) => !r.deleted_at);
+  const trashCount = () => rows.length - live().length;
+  const counts = { todo: live().filter((r) => r.status === 'paid').length };
 
   app.innerHTML = `
     <h1>Bestellingen</h1>
@@ -1051,12 +1053,20 @@ async function viewOrders() {
         <button class="filter" aria-pressed="false" data-f="delivered">Bezorgd</button>
         <button class="filter" aria-pressed="false" data-f="paidall">Alle betaalde</button>
         <button class="filter" aria-pressed="false" data-f="open">Niet betaald</button>
+        <button class="filter" aria-pressed="false" data-f="trash">Prullenbak (<span data-trash-n>${trashCount()}</span>)</button>
       </div>
     </div>
-    <p class="a-note" data-count></p>
+    <div class="a-bulk">
+      <p class="a-note" data-count></p>
+      <div class="a-buttons" data-bulk hidden>
+        <button class="btn btn-outline" type="button" data-act="trash">Naar prullenbak</button>
+        <button class="btn btn-outline" type="button" data-act="restore">Terugzetten</button>
+        <button class="btn btn-danger" type="button" data-act="purge">Definitief verwijderen</button>
+      </div>
+    </div>
     <div class="a-scroll">
       <table class="a-table">
-        <thead><tr><th>Nummer</th><th class="hide-sm">Datum</th><th>Klant</th><th>Totaal</th><th>Status</th></tr></thead>
+        <thead><tr><th class="a-sel"><input type="checkbox" aria-label="Alles selecteren" data-all /></th><th>Nummer</th><th class="hide-sm" data-date-head>Datum</th><th>Klant</th><th>Totaal</th><th>Status</th></tr></thead>
         <tbody data-rows></tbody>
       </table>
     </div>
@@ -1065,10 +1075,23 @@ async function viewOrders() {
   const tbody = app.querySelector<HTMLElement>('[data-rows]')!;
   const q = app.querySelector<HTMLInputElement>('[data-q]')!;
   let filter = 'todo';
+  const selected = new Set<string>();
+  let list: any[] = [];
+  const bulk = app.querySelector<HTMLElement>('[data-bulk]')!;
+  const allBox = app.querySelector<HTMLInputElement>('[data-all]')!;
+  const syncBulk = () => {
+    bulk.hidden = selected.size === 0;
+    bulk.querySelector<HTMLElement>('[data-act="trash"]')!.hidden = filter === 'trash';
+    bulk.querySelector<HTMLElement>('[data-act="restore"]')!.hidden = filter !== 'trash';
+    bulk.querySelector<HTMLElement>('[data-act="purge"]')!.hidden = filter !== 'trash';
+    allBox.checked = list.length > 0 && list.every((r) => selected.has(r.id));
+  };
   const render = () => {
     const term = q.value.trim().toLowerCase();
-    const list = rows.filter((r) => {
+    list = rows.filter((r) => {
       if (term && !`${r.number} ${r.first_name} ${r.last_name} ${r.email}`.toLowerCase().includes(term)) return false;
+      if (filter === 'trash') return !!r.deleted_at;
+      if (r.deleted_at) return false;
       if (filter === 'todo') return r.status === 'paid';
       if (filter === 'shipped') return r.status === 'shipped';
       if (filter === 'delivered') return r.status === 'delivered';
@@ -1080,20 +1103,47 @@ async function viewOrders() {
       ? list
           .map(
             (r) => `<tr>
+          <td class="a-sel"><input type="checkbox" aria-label="Selecteer ${esc(r.number)}" data-sel="${esc(r.id)}" ${selected.has(r.id) ? 'checked' : ''} /></td>
           <td><a href="#/bestelling/${esc(r.id)}">${esc(r.number)}</a>${r.needs_attention ? ' <span class="a-pill sold" title="Actie nodig">!</span>' : ''}</td>
-          <td class="hide-sm">${esc(dateTime(r.paid_at ?? r.created_at))}</td>
+          <td class="hide-sm">${esc(dateTime(filter === 'trash' ? r.deleted_at : (r.paid_at ?? r.created_at)))}</td>
           <td>${esc(r.first_name)} ${esc(r.last_name)}</td>
           <td>${esc(euro(r.total_cents))}</td>
           <td>${statusPill(r.status)}</td>
         </tr>`,
           )
           .join('')
-      : '<tr><td colspan="5" class="muted">Geen bestellingen.</td></tr>';
+      : `<tr><td colspan="6" class="muted">${filter === 'trash' ? 'De prullenbak is leeg.' : 'Geen bestellingen.'}</td></tr>`;
+    app.querySelector('[data-date-head]')!.textContent = filter === 'trash' ? 'Verwijderd op' : 'Datum';
+    tbody.querySelectorAll<HTMLInputElement>('[data-sel]').forEach((c) =>
+      c.addEventListener('change', () => {
+        c.checked ? selected.add(c.dataset.sel!) : selected.delete(c.dataset.sel!);
+        syncBulk();
+      }),
+    );
+    syncBulk();
   };
+  allBox.addEventListener('change', () => {
+    list.forEach((r) => (allBox.checked ? selected.add(r.id) : selected.delete(r.id)));
+    render();
+  });
+  bulk.querySelectorAll<HTMLButtonElement>('[data-act]').forEach((b) =>
+    b.addEventListener('click', async () => {
+      const ids = [...selected].filter((id) => list.some((r) => r.id === id));
+      if (!ids.length) return;
+      const ok = await orderAction(b.dataset.act as OrderAct, ids, rows.filter((r) => ids.includes(r.id)));
+      if (!ok) return;
+      selected.clear();
+      const { data: fresh } = await sb.from('orders').select('*').order('created_at', { ascending: false }).limit(500);
+      if (fresh) rows = fresh as any[];
+      app.querySelector('[data-trash-n]')!.textContent = String(trashCount());
+      render();
+    }),
+  );
   q.addEventListener('input', render);
   app.querySelectorAll<HTMLButtonElement>('[data-f]').forEach((b) =>
     b.addEventListener('click', () => {
       filter = b.dataset.f!;
+      selected.clear();
       app.querySelectorAll('[data-f]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
       render();
     }),
@@ -1113,6 +1163,34 @@ async function viewOrders() {
 
 const PAID = ['paid', 'shipped', 'delivered'];
 
+// Prullenbak: naar prullenbak, terugzetten of (alleen vanuit de prullenbak) definitief verwijderen.
+type OrderAct = 'trash' | 'restore' | 'purge';
+async function orderAction(act: OrderAct, ids: string[], orders: any[]): Promise<boolean> {
+  const n = ids.length;
+  const what = n === 1 ? `bestelling ${orders[0]?.number ?? ''}` : `${n} bestellingen`;
+  const paidN = orders.filter((o) => PAID.includes(o.status)).length;
+  if (act === 'trash') {
+    const warn = paidN ? `\n\nLet op: ${paidN === 1 ? 'er is er één' : `er zijn er ${paidN}`} betaald. Verwijder alleen testbestellingen.` : '';
+    if (!confirm(`${what} naar de prullenbak verplaatsen? Je kunt ${n === 1 ? 'hem' : 'ze'} daar terugzetten.${warn}`)) return false;
+  }
+  if (act === 'purge' && !confirm(`${what} definitief verwijderen? Dit kan niet ongedaan worden gemaakt.`)) return false;
+  const q =
+    act === 'purge'
+      ? sb.from('orders').delete().in('id', ids)
+      : sb
+          .from('orders')
+          .update(act === 'trash' ? { deleted_at: new Date().toISOString(), deleted_by: session?.user.email ?? null } : { deleted_at: null, deleted_by: null })
+          .in('id', ids);
+  const { error } = await q;
+  if (error) {
+    if (/deleted_(at|by)/.test(error.message)) toast('Voer eerst migratie 013_prullenbak_bezoekstappen.sql uit in Supabase.', true);
+    else fail(error, 'Bestellingen bijwerken');
+    return false;
+  }
+  toast(act === 'trash' ? `${what} in de prullenbak gezet.` : act === 'restore' ? `${what} teruggezet.` : `${what} definitief verwijderd.`);
+  return true;
+}
+
 // ---------- overzicht (verkoopcijfers) ----------
 const PERIODS: Record<string, { label: string; days: number | null }> = {
   '7': { label: '7 dagen', days: 7 },
@@ -1125,11 +1203,12 @@ async function viewStats() {
   app.innerHTML = '<p class="muted">Cijfers laden…</p>';
   const { data, error } = await sb
     .from('orders')
-    .select('id,status,country,total_cents,discount_cents,discount_code,shipping_cents,paid_at,created_at,order_items(name,price_cents)')
+    .select('*,order_items(name,price_cents)') // ook als migratie 013 (prullenbak) nog niet is uitgevoerd
     .order('created_at', { ascending: false })
     .limit(5000);
   if (error) return fail(error, 'Cijfers laden');
-  const all = data as any[];
+  const all = (data as any[]).filter((r) => !r.deleted_at);
+  const { data: stepRows, error: stepError } = await sb.from('visit_steps').select('day,step,n');
   const when = (r: any) => new Date(r.paid_at ?? r.created_at).getTime();
 
   app.innerHTML = `
@@ -1188,6 +1267,32 @@ async function viewStats() {
       </table></div>`;
     const tried = paid.length + unpaid;
 
+    // Trechter: waar haken bezoekers af
+    const fromDay = days ? new Date(from).toISOString().slice(0, 10) : '';
+    const stepN = (step: string) => (stepRows ?? []).filter((r: any) => r.step === step && r.day >= fromDay).reduce((t: number, r: any) => t + r.n, 0);
+    const funnel: [string, number][] = [
+      ['Bezoek', stepN('visit')],
+      ['Product bekeken', stepN('product')],
+      ['In winkelwagen', stepN('cart')],
+      ['Afrekenpagina', stepN('checkout')],
+      ['Naar betalen', stepN('pay')],
+      ['Betaald', paid.length],
+    ];
+    const top = funnel[0][1];
+    const funnelHtml = stepError
+      ? '<p class="a-note">Voer eerst migratie 013_prullenbak_bezoekstappen.sql uit in Supabase, dan wordt dit bijgehouden.</p>'
+      : `${table(
+          ['Stap', 'Aantal', '', 'Afgehaakt'],
+          funnel.map(([label, n], i) => {
+            const pct = top ? Math.min(100, Math.round((n / top) * 100)) : 0;
+            const prev = i ? funnel[i - 1][1] : 0;
+            const lost = i && prev ? Math.max(0, Math.round(((prev - n) / prev) * 100)) : null;
+            return [label, String(n), `<span class="a-bar"><span style="width:${pct}%"></span></span>`, lost === null ? '' : `${lost}%`];
+          }),
+          '',
+        )}
+        <p class="a-note">Elke stap telt één keer per bezoek. "Afgehaakt" is het deel dat na de vorige stap niet verder ging. Het meten loopt sinds migratie 013 is uitgevoerd.</p>`;
+
     box.innerHTML = `
       <div class="a-stats">
         ${tile('Omzet', esc(euro(revenue)), 'incl. verzending en btw')}
@@ -1195,6 +1300,8 @@ async function viewStats() {
         ${tile('Verkochte stuks', String(items.length))}
         ${tile('Afgerond', tried ? `${Math.round((paid.length / tried) * 100)}%` : '—', `${unpaid} afgehaakt bij betalen`)}
       </div>
+      <h2>Waar haken bezoekers af</h2>
+      ${funnelHtml}
       <h2>Best verkocht</h2>
       ${table(
         ['Product', 'Stuks', 'Omzet'],
@@ -1282,6 +1389,11 @@ async function viewOrder(id: string) {
   app.innerHTML = `
     <p><a href="#/bestellingen">← Terug naar bestellingen</a></p>
     <h1>${esc(o.number)} ${statusPill(o.status)}</h1>
+    ${
+      o.deleted_at
+        ? `<div class="a-attention"><p>Deze bestelling staat in de prullenbak (verwijderd op ${esc(dateTime(o.deleted_at))}${o.deleted_by ? ` door ${esc(o.deleted_by)}` : ''}).</p><div class="a-buttons"><button class="btn btn-outline" data-order-act="restore">Terugzetten</button><button class="btn btn-danger" data-order-act="purge">Definitief verwijderen</button></div></div>`
+        : ''
+    }
     ${o.needs_attention ? `<div class="a-attention"><p>${esc(o.needs_attention)}</p><button class="btn btn-outline" data-resolve>Opgelost</button></div>` : ''}
     <div class="a-row">
       <div class="a-card">
@@ -1366,6 +1478,16 @@ async function viewOrder(id: string) {
     if (error) return fail(error, 'Opslaan');
     viewOrder(id);
   });
+  if (!o.deleted_at)
+    app.insertAdjacentHTML('beforeend', '<div class="a-buttons a-trash"><button class="btn btn-outline" type="button" data-order-act="trash">Naar prullenbak</button></div>');
+  app.querySelectorAll<HTMLButtonElement>('[data-order-act]').forEach((b) =>
+    b.addEventListener('click', async () => {
+      const act = b.dataset.orderAct as OrderAct;
+      if (!(await orderAction(act, [id], [o]))) return;
+      if (act === 'restore') viewOrder(id);
+      else location.hash = '#/bestellingen';
+    }),
+  );
   const labelBtn = app.querySelector<HTMLButtonElement>('[data-label]');
   labelBtn?.addEventListener('click', async () => {
     const chosen = app.querySelector<HTMLSelectElement>('[data-parcel]')!.value;

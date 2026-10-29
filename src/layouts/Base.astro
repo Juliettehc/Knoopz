@@ -59,7 +59,9 @@ const ogImage = new URL(image ?? '/knoopz-logo.png', site).href;
     <CartDrawer lang={lang} />
     <script>
       import { refreshLiveStatus } from '../scripts/live';
+      import { track } from '../scripts/track';
       refreshLiveStatus();
+      track('visit');
     </script>
   </body>
 </html>

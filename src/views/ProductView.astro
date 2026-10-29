@@ -167,6 +167,9 @@ const shipCosts = sh.nl === null ? '' :
 
 <script>
   import { addToCart, inCart, onCartChange } from '../scripts/cart';
+  import { track } from '../scripts/track';
+
+  track('product');
 
   // Galerij: miniaturen (desktop) en veegstrook met puntjes (mobiel)
   document.querySelectorAll<HTMLElement>('[data-gallery]').forEach((g) => {

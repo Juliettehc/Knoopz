@@ -2,6 +2,8 @@
 // Unieke producten: elk product kan maar één keer in de winkelwagen.
 // De echte voorraadcontrole en reservering gebeuren in fase 5 op de server.
 
+import { track } from './track';
+
 const KEY = 'knoopz-cart';
 const EVENT = 'knoopz:cart-change';
 
@@ -28,6 +30,7 @@ export const inCart = (id: string) => getCart().includes(id);
 export const addToCart = (id: string) => {
   const ids = getCart();
   if (!ids.includes(id)) save([...ids, id]);
+  track('cart');
 };
 
 export const removeFromCart = (id: string) => save(getCart().filter((x) => x !== id));
