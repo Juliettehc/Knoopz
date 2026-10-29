@@ -6,19 +6,31 @@ import { SUPABASE_URL, SUPABASE_KEY } from '../lib/supabase-config';
 
 export type Step = 'visit' | 'product' | 'cart' | 'checkout' | 'pay';
 
-export function track(step: Step) {
-  if (!SUPABASE_URL || !SUPABASE_KEY || navigator.webdriver) return;
-  const key = `knoopz-step-${step}`;
+// true als deze sleutel in dit tabblad nog niet geteld is
+function firstTime(key: string) {
+  if (!SUPABASE_URL || !SUPABASE_KEY || navigator.webdriver) return false;
   try {
-    if (sessionStorage.getItem(key)) return;
+    if (sessionStorage.getItem(key)) return false;
     sessionStorage.setItem(key, '1');
   } catch {
     /* geen opslag: dan telt hij gewoon */
   }
-  fetch(`${SUPABASE_URL}/rest/v1/rpc/track_step`, {
+  return true;
+}
+
+const send = (fn: string, body: unknown) =>
+  fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
     method: 'POST',
     headers: { apikey: SUPABASE_KEY, 'content-type': 'application/json' },
-    body: JSON.stringify({ p_step: step }),
+    body: JSON.stringify(body),
     keepalive: true,
   }).catch(() => {});
+
+export function track(step: Step) {
+  if (firstTime(`knoopz-step-${step}`)) send('track_step', { p_step: step });
+}
+
+// Per product: bekeken of in de winkelwagen gelegd
+export function trackProduct(id: string, step: 'view' | 'cart') {
+  if (/^[0-9a-f-]{36}$/i.test(id) && firstTime(`knoopz-${step}-${id}`)) send('track_product', { p_product: id, p_step: step });
 }

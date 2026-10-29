@@ -69,6 +69,7 @@ body.admin { background: var(--bg); }
 .a-stat small { font-size: 12px; color: var(--muted); }
 .a-bar { display: block; width: 160px; max-width: 30vw; height: 8px; background: var(--surface); }
 .a-bar span { display: block; height: 100%; background: var(--ink); }
+.a-sortbar { margin-bottom: 12px; }
 .a-bulk { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; margin-bottom: 8px; min-height: 44px; }
 .a-bulk .a-buttons { margin-top: 0; }
 .a-bulk .btn { min-height: 40px; padding: 0 16px; }

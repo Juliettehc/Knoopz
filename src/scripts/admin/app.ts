@@ -1210,12 +1210,16 @@ async function viewStats() {
   app.innerHTML = '<p class="muted">Cijfers laden…</p>';
   const { data, error } = await sb
     .from('orders')
-    .select('*,order_items(name,price_cents)') // ook als migratie 013 (prullenbak) nog niet is uitgevoerd
+    .select('*,order_items(name,price_cents,product_id)') // ook als migratie 013 (prullenbak) nog niet is uitgevoerd
     .order('created_at', { ascending: false })
     .limit(5000);
   if (error) return fail(error, 'Cijfers laden');
   const all = (data as any[]).filter((r) => !r.deleted_at);
   const { data: stepRows, error: stepError } = await sb.from('visit_steps').select('day,step,n');
+  const { data: prodSteps, error: prodError } = await sb.from('product_steps').select('day,product_id,step,n');
+  const { data: prods } = await sb.from('products').select('id,code,name_nl,published');
+  let period = '30';
+  let sortBy: 'most' | 'least' | 'sold' = 'most';
   const when = (r: any) => new Date(r.paid_at ?? r.created_at).getTime();
 
   app.innerHTML = `
@@ -1232,6 +1236,7 @@ async function viewStats() {
 
   const box = app.querySelector<HTMLElement>('[data-stats]')!;
   const render = (key: string) => {
+    period = key;
     const days = PERIODS[key].days;
     const from = days ? Date.now() - days * 86400000 : 0;
     const inPeriod = all.filter((r) => when(r) >= from);
@@ -1286,6 +1291,33 @@ async function viewStats() {
       ['Betaald', paid.length],
     ];
     const top = funnel[0][1];
+
+    // Per product: bekeken, in winkelwagen, verkocht (alle gepubliceerde producten, ook zonder weergaven)
+    const per = new Map<string, { name: string; views: number; cart: number; sold: number }>();
+    (prods ?? []).forEach((p: any) => {
+      if (p.published) per.set(p.id, { name: `${p.name_nl} (${p.code})`, views: 0, cart: 0, sold: 0 });
+    });
+    (prodSteps ?? []).forEach((r: any) => {
+      const x = per.get(r.product_id);
+      if (x && r.day >= fromDay) r.step === 'view' ? (x.views += r.n) : (x.cart += r.n);
+    });
+    items.forEach((i) => {
+      const x = per.get(i.product_id);
+      if (x) x.sold++;
+    });
+    const perList = [...per.values()].sort((a, b) =>
+      sortBy === 'least' ? a.views - b.views || a.cart - b.cart : sortBy === 'sold' ? b.sold - a.sold || b.views - a.views : b.views - a.views || b.cart - a.cart,
+    );
+    const sortBtn = (k: typeof sortBy, label: string) => `<button class="filter" aria-pressed="${sortBy === k}" data-sort="${k}">${label}</button>`;
+    const productHtml = prodError
+      ? '<p class="a-note">Voer eerst migratie 014_productweergaven.sql uit in Supabase, dan wordt per product bijgehouden hoe vaak het bekeken is.</p>'
+      : `<div class="a-filters a-sortbar" role="group" aria-label="Sorteren">${sortBtn('most', 'Meest bekeken')}${sortBtn('least', 'Minst bekeken')}${sortBtn('sold', 'Meest verkocht')}</div>
+        ${table(
+          ['Product', 'Bekeken', 'In winkelwagen', 'Verkocht'],
+          perList.map((x) => [esc(x.name), String(x.views), String(x.cart), String(x.sold)]),
+          'Geen gepubliceerde producten.',
+        )}
+        <p class="a-note">Alleen producten die nu op de website staan. Elke bezoeker telt één keer per product per bezoek. Het meten loopt sinds migratie 014 is uitgevoerd.</p>`;
     const funnelHtml = stepError
       ? '<p class="a-note">Voer eerst migratie 013_prullenbak_bezoekstappen.sql uit in Supabase, dan wordt dit bijgehouden.</p>'
       : `${table(
@@ -1309,6 +1341,8 @@ async function viewStats() {
       </div>
       <h2>Waar haken bezoekers af</h2>
       ${funnelHtml}
+      <h2>Per product</h2>
+      ${productHtml}
       <h2>Best verkocht</h2>
       ${table(
         ['Product', 'Stuks', 'Omzet'],
@@ -1332,6 +1366,12 @@ async function viewStats() {
         }),
         '',
       )}`;
+    box.querySelectorAll<HTMLButtonElement>('[data-sort]').forEach((b) =>
+      b.addEventListener('click', () => {
+        sortBy = b.dataset.sort as typeof sortBy;
+        render(period);
+      }),
+    );
   };
 
   app.querySelectorAll<HTMLButtonElement>('[data-p]').forEach((b) =>
