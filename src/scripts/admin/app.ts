@@ -140,6 +140,7 @@ async function route() {
 
   if (section === 'product') return viewProduct(id === 'nieuw' ? null : id);
   if (section === 'drops') return viewDrops();
+  if (section === 'overzicht') return viewStats();
   if (section === 'bestellingen') return viewOrders();
   if (section === 'bestelling' && id) return viewOrder(id);
   if (section === 'kortingscodes') return viewCodes();
@@ -1111,6 +1112,122 @@ async function viewOrders() {
 }
 
 const PAID = ['paid', 'shipped', 'delivered'];
+
+// ---------- overzicht (verkoopcijfers) ----------
+const PERIODS: Record<string, { label: string; days: number | null }> = {
+  '7': { label: '7 dagen', days: 7 },
+  '30': { label: '30 dagen', days: 30 },
+  '365': { label: '12 maanden', days: 365 },
+  all: { label: 'Alles', days: null },
+};
+
+async function viewStats() {
+  app.innerHTML = '<p class="muted">Cijfers laden…</p>';
+  const { data, error } = await sb
+    .from('orders')
+    .select('id,status,country,total_cents,discount_cents,discount_code,shipping_cents,paid_at,created_at,order_items(name,price_cents)')
+    .order('created_at', { ascending: false })
+    .limit(5000);
+  if (error) return fail(error, 'Cijfers laden');
+  const all = data as any[];
+  const when = (r: any) => new Date(r.paid_at ?? r.created_at).getTime();
+
+  app.innerHTML = `
+    <h1>Overzicht</h1>
+    <div class="a-toolbar">
+      <div class="a-filters" role="group" aria-label="Periode">
+        ${Object.entries(PERIODS)
+          .map(([k, p]) => `<button class="filter" aria-pressed="${k === '30'}" data-p="${k}">${p.label}</button>`)
+          .join('')}
+      </div>
+    </div>
+    <div data-stats></div>
+    <p class="a-note">Bezoekers (aantallen, pagina's, waar ze vandaan komen) zie je in Cloudflare: Workers &amp; Pages → het Knoopz-project → Metrics → Web Analytics.</p>`;
+
+  const box = app.querySelector<HTMLElement>('[data-stats]')!;
+  const render = (key: string) => {
+    const days = PERIODS[key].days;
+    const from = days ? Date.now() - days * 86400000 : 0;
+    const inPeriod = all.filter((r) => when(r) >= from);
+    const paid = inPeriod.filter((r) => PAID.includes(r.status));
+    const unpaid = inPeriod.filter((r) => !PAID.includes(r.status)).length;
+    const sum = (list: any[], f: (r: any) => number) => list.reduce((t, r) => t + (f(r) || 0), 0);
+    const revenue = sum(paid, (r) => r.total_cents);
+    const items = paid.flatMap((r) => r.order_items ?? []);
+
+    const products = new Map<string, { n: number; cents: number }>();
+    items.forEach((i) => {
+      const p = products.get(i.name) ?? { n: 0, cents: 0 };
+      p.n++;
+      p.cents += i.price_cents;
+      products.set(i.name, p);
+    });
+    const codes = new Map<string, { n: number; cents: number }>();
+    paid.filter((r) => r.discount_code).forEach((r) => {
+      const c = codes.get(r.discount_code) ?? { n: 0, cents: 0 };
+      c.n++;
+      c.cents += r.discount_cents;
+      codes.set(r.discount_code, c);
+    });
+    const months = new Map<string, { n: number; cents: number }>();
+    const monthFmt = new Intl.DateTimeFormat('nl-NL', { month: 'long', year: 'numeric' });
+    paid.forEach((r) => {
+      const m = monthFmt.format(new Date(when(r)));
+      const x = months.get(m) ?? { n: 0, cents: 0 };
+      x.n++;
+      x.cents += r.total_cents;
+      months.set(m, x);
+    });
+
+    const tile = (label: string, value: string, sub = '') =>
+      `<div class="a-card a-stat"><span class="label">${label}</span><strong>${value}</strong>${sub ? `<small>${sub}</small>` : ''}</div>`;
+    const table = (head: string[], rows: string[][], empty: string) => `
+      <div class="a-scroll"><table class="a-table">
+        <thead><tr>${head.map((h) => `<th>${h}</th>`).join('')}</tr></thead>
+        <tbody>${rows.length ? rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('') : `<tr><td colspan="${head.length}" class="muted">${empty}</td></tr>`}</tbody>
+      </table></div>`;
+    const tried = paid.length + unpaid;
+
+    box.innerHTML = `
+      <div class="a-stats">
+        ${tile('Omzet', esc(euro(revenue)), 'incl. verzending en btw')}
+        ${tile('Bestellingen', String(paid.length), paid.length ? `gemiddeld ${esc(euro(Math.round(revenue / paid.length)))}` : '')}
+        ${tile('Verkochte stuks', String(items.length))}
+        ${tile('Afgerond', tried ? `${Math.round((paid.length / tried) * 100)}%` : '—', `${unpaid} afgehaakt bij betalen`)}
+      </div>
+      <h2>Best verkocht</h2>
+      ${table(
+        ['Product', 'Stuks', 'Omzet'],
+        [...products.entries()].sort((a, b) => b[1].n - a[1].n || b[1].cents - a[1].cents).slice(0, 15).map(([name, p]) => [esc(name), String(p.n), esc(euro(p.cents))]),
+        'Nog niets verkocht in deze periode.',
+      )}
+      <h2>Per maand</h2>
+      ${table(['Maand', 'Bestellingen', 'Omzet'], [...months.entries()].map(([m, x]) => [esc(m), String(x.n), esc(euro(x.cents))]), 'Geen bestellingen.')}
+      <h2>Kortingscodes</h2>
+      ${table(
+        ['Code', 'Gebruikt', 'Korting gegeven'],
+        [...codes.entries()].sort((a, b) => b[1].n - a[1].n).map(([c, x]) => [esc(c), String(x.n), esc(euro(x.cents))]),
+        'Geen kortingscodes gebruikt.',
+      )}
+      <h2>Land</h2>
+      ${table(
+        ['Land', 'Bestellingen', 'Omzet'],
+        ['NL', 'BE'].map((c) => {
+          const l = paid.filter((r) => r.country === c);
+          return [c === 'NL' ? 'Nederland' : 'België', String(l.length), esc(euro(sum(l, (r) => r.total_cents)))];
+        }),
+        '',
+      )}`;
+  };
+
+  app.querySelectorAll<HTMLButtonElement>('[data-p]').forEach((b) =>
+    b.addEventListener('click', () => {
+      app.querySelectorAll('[data-p]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+      render(b.dataset.p!);
+    }),
+  );
+  render('30');
+}
 
 // Is PostNL ingesteld in Cloudflare? Zo niet, dan werkt verzenden zoals vroeger (handmatig).
 let postnlOn: Promise<boolean> | null = null;
