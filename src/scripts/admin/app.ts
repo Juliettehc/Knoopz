@@ -1176,18 +1176,25 @@ async function orderAction(act: OrderAct, ids: string[], orders: any[]): Promise
   if (act === 'purge' && !confirm(`${what} definitief verwijderen? Dit kan niet ongedaan worden gemaakt.`)) return false;
   const q =
     act === 'purge'
-      ? sb.from('orders').delete().in('id', ids)
+      ? sb.from('orders').delete().in('id', ids).select('id')
       : sb
           .from('orders')
           .update(act === 'trash' ? { deleted_at: new Date().toISOString(), deleted_by: session?.user.email ?? null } : { deleted_at: null, deleted_by: null })
           .in('id', ids);
-  const { error } = await q;
+  const { data: changed, error } = await q;
   if (error) {
     if (/deleted_(at|by)/.test(error.message)) toast('Voer eerst migratie 013_prullenbak_bezoekstappen.sql uit in Supabase.', true);
     else fail(error, 'Bestellingen bijwerken');
     return false;
   }
-  toast(act === 'trash' ? `${what} in de prullenbak gezet.` : act === 'restore' ? `${what} teruggezet.` : `${what} definitief verwijderd.`);
+  if (act === 'purge') {
+    const done = (changed ?? []).length;
+    if (done < n) {
+      toast(`${n - done === 1 ? 'Eén bestelling is' : `${n - done} bestellingen zijn`} nog niet verwijderd: daar is iemand nog aan het afrekenen. Probeer het over een kwartier opnieuw.`, true);
+      return done > 0;
+    }
+  }
+    toast(act === 'trash' ? `${what} in de prullenbak gezet.` : act === 'restore' ? `${what} teruggezet.` : `${what} definitief verwijderd.`);
   return true;
 }
 

@@ -4,6 +4,7 @@
 -- ---------------------------------------------------------------
 -- 1. Prullenbak: een verwijderde bestelling krijgt een datum en blijft terug te zetten.
 --    Definitief verwijderen kan alleen vanuit de prullenbak.
+--    Verwijderen stuurt geen e-mail en verandert niets aan de voorraad: verkochte stukken blijven verkocht.
 -- ---------------------------------------------------------------
 alter table public.orders add column if not exists deleted_at timestamptz;
 alter table public.orders add column if not exists deleted_by text;
@@ -11,7 +12,11 @@ alter table public.orders add column if not exists deleted_by text;
 grant delete on public.orders to authenticated;
 drop policy if exists "bestellingen definitief verwijderen" on public.orders;
 create policy "bestellingen definitief verwijderen" on public.orders for delete to authenticated
-  using (public.is_admin() and deleted_at is not null);
+  using (
+    public.is_admin() and deleted_at is not null
+    -- niet zolang iemand nog aan het afrekenen is: dan zou de reservering vervallen en het stuk weer te koop staan
+    and not (status = 'pending' and reserved_until > now())
+  );
 
 -- Wordt een bestelling in de prullenbak alsnog betaald, dan komt hij vanzelf terug.
 create or replace function public.order_restore_on_paid()
@@ -25,6 +30,28 @@ begin
 end $$;
 drop trigger if exists order_restore_on_paid on public.orders;
 create trigger order_restore_on_paid before update on public.orders for each row execute function public.order_restore_on_paid();
+
+-- Bestellingen in de prullenbak niet meer bij PostNL navragen (alleen als PostNL-migratie 011 al is uitgevoerd).
+do $do$
+begin
+  if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'orders' and column_name = 'postnl_barcode') then
+    execute $f$
+      create or replace function public.orders_to_track(p_limit integer default 25)
+      returns jsonb language sql security definer set search_path = public as $$
+        with picked as (
+          select id from public.orders
+          where status = 'shipped' and postnl_barcode is not null and shipped_at > now() - interval '60 days' and deleted_at is null
+          order by tracked_at nulls first limit greatest(1, least(p_limit, 50))
+        ), touched as (
+          update public.orders o set tracked_at = now() from picked where o.id = picked.id
+          returning o.id, o.postnl_barcode, o.postal_code, o.country
+        )
+        select coalesce(jsonb_agg(jsonb_build_object('id', id, 'barcode', postnl_barcode, 'postal_code', postal_code, 'country', country)), '[]'::jsonb)
+        from touched;
+      $$;
+    $f$;
+  end if;
+end $do$;
 
 -- ---------------------------------------------------------------
 -- 2. Bezoekstappen: alleen tellers per dag, geen gegevens over personen.
