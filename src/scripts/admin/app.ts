@@ -140,6 +140,7 @@ async function route() {
 
   if (section === 'product') return viewProduct(id === 'nieuw' ? null : id);
   if (section === 'drops') return viewDrops();
+  if (section === 'overzicht' && id) return viewProductStats(id);
   if (section === 'overzicht') return viewStats();
   if (section === 'bestellingen') return viewOrders();
   if (section === 'bestelling' && id) return viewOrder(id);
@@ -1293,9 +1294,9 @@ async function viewStats() {
     const top = funnel[0][1];
 
     // Per product: bekeken, in winkelwagen, verkocht (alle gepubliceerde producten, ook zonder weergaven)
-    const per = new Map<string, { name: string; views: number; cart: number; sold: number }>();
+    const per = new Map<string, { id: string; name: string; views: number; cart: number; sold: number }>();
     (prods ?? []).forEach((p: any) => {
-      if (p.published) per.set(p.id, { name: `${p.name_nl} (${p.code})`, views: 0, cart: 0, sold: 0 });
+      if (p.published) per.set(p.id, { id: p.id, name: `${p.name_nl} (${p.code})`, views: 0, cart: 0, sold: 0 });
     });
     (prodSteps ?? []).forEach((r: any) => {
       const x = per.get(r.product_id);
@@ -1314,10 +1315,10 @@ async function viewStats() {
       : `<div class="a-filters a-sortbar" role="group" aria-label="Sorteren">${sortBtn('most', 'Meest bekeken')}${sortBtn('least', 'Minst bekeken')}${sortBtn('sold', 'Meest verkocht')}</div>
         ${table(
           ['Product', 'Bekeken', 'In winkelwagen', 'Verkocht'],
-          perList.map((x) => [esc(x.name), String(x.views), String(x.cart), String(x.sold)]),
+          perList.map((x) => [`<a href="#/overzicht/${esc(x.id)}">${esc(x.name)}</a>`, String(x.views), String(x.cart), String(x.sold)]),
           'Geen gepubliceerde producten.',
         )}
-        <p class="a-note">Alleen producten die nu op de website staan. Elke bezoeker telt één keer per product per bezoek. Het meten loopt sinds migratie 014 is uitgevoerd.</p>`;
+        <p class="a-note">Klik op een product om per dag te zien wanneer het bekeken is. Alleen producten die nu op de website staan. Elke bezoeker telt één keer per product per bezoek. Het meten loopt sinds migratie 014 is uitgevoerd.</p>`;
     const funnelHtml = stepError
       ? '<p class="a-note">Voer eerst migratie 013_prullenbak_bezoekstappen.sql uit in Supabase, dan wordt dit bijgehouden.</p>'
       : `${table(
@@ -1379,6 +1380,164 @@ async function viewStats() {
     b.addEventListener('click', () => {
       app.querySelectorAll('[data-p]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
       render(b.dataset.p!);
+    }),
+  );
+  render('30');
+}
+
+// ---------- overzicht per product: wanneer bekeken (per dag) ----------
+const amsDay = (t: string | number | Date) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Amsterdam' }).format(new Date(t));
+const addDays = (day: string, n: number) => new Date(Date.parse(`${day}T12:00:00Z`) + n * 86400000).toISOString().slice(0, 10);
+const dayFmt = new Intl.DateTimeFormat('nl-NL', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
+const fmtDay = (day: string) => dayFmt.format(new Date(`${day}T12:00:00Z`));
+const WEEKDAYS = ['maandag', 'dinsdag', 'woensdag', 'donderdag', 'vrijdag', 'zaterdag', 'zondag'];
+const weekdayOf = (day: string) => (new Date(`${day}T12:00:00Z`).getUTCDay() + 6) % 7; // 0 = maandag
+
+async function viewProductStats(id: string) {
+  app.innerHTML = '<p class="muted">Cijfers laden…</p>';
+  const { data: p, error } = await sb.from('products').select('id,code,name_nl').eq('id', id).single();
+  if (error) return fail(error, 'Product laden');
+  const { data: steps, error: stepError } = await sb.from('product_steps').select('day,step,n').eq('product_id', id);
+  const { data: first } = await sb.from('product_steps').select('day').order('day').limit(1);
+  const { data: orders } = await sb
+    .from('orders')
+    .select('*,order_items!inner(product_id)')
+    .eq('order_items.product_id', id)
+    .limit(5000);
+
+  // Per dag: bekeken, in winkelwagen, verkocht
+  const byDay = new Map<string, { views: number; cart: number; sold: number }>();
+  const at = (day: string) => {
+    let x = byDay.get(day);
+    if (!x) byDay.set(day, (x = { views: 0, cart: 0, sold: 0 }));
+    return x;
+  };
+  (steps ?? []).forEach((r: any) => (r.step === 'view' ? (at(r.day).views += r.n) : (at(r.day).cart += r.n)));
+  (orders ?? [])
+    .filter((o: any) => !o.deleted_at && PAID.includes(o.status))
+    .forEach((o: any) => (at(amsDay(o.paid_at ?? o.created_at)).sold += o.order_items.length));
+
+  const today = amsDay(Date.now());
+  const since = first?.[0]?.day ?? today; // sinds wanneer er gemeten wordt
+  const RANGES: Record<string, { label: string; days: number | null }> = {
+    '14': { label: '14 dagen', days: 14 },
+    '30': { label: '30 dagen', days: 30 },
+    '90': { label: '90 dagen', days: 90 },
+    all: { label: 'Alles', days: null },
+  };
+
+  app.innerHTML = `
+    <p><a href="#/overzicht">← Terug naar overzicht</a></p>
+    <h1>${esc(p.name_nl)} <span class="muted">(${esc(p.code)})</span></h1>
+    <div class="a-toolbar">
+      <div class="a-filters" role="group" aria-label="Periode">
+        ${Object.entries(RANGES)
+          .map(([k, r]) => `<button class="filter" aria-pressed="${k === '30'}" data-r="${k}">${r.label}</button>`)
+          .join('')}
+      </div>
+    </div>
+    <div data-pstats></div>`;
+  const box = app.querySelector<HTMLElement>('[data-pstats]')!;
+
+  if (stepError) {
+    box.innerHTML = '<p class="a-note">Voer eerst migratie 014_productweergaven.sql uit in Supabase, dan wordt per product bijgehouden wanneer het bekeken is.</p>';
+    return;
+  }
+
+  const render = (key: string) => {
+    const n = RANGES[key].days;
+    const start = n ? (addDays(today, -(n - 1)) > since ? addDays(today, -(n - 1)) : since) : since;
+    const days: string[] = [];
+    for (let d = start; d <= today; d = addDays(d, 1)) days.push(d);
+    const rows = days.map((day) => ({ day, ...(byDay.get(day) ?? { views: 0, cart: 0, sold: 0 }) }));
+    const total = (f: 'views' | 'cart' | 'sold') => rows.reduce((t, r) => t + r[f], 0);
+    const views = total('views');
+    const avg = rows.length ? views / rows.length : 0;
+    // Piek: minstens 3 weergaven en minstens twee keer zo veel als gemiddeld in deze periode
+    const isPeak = (v: number) => v >= 3 && v >= 2 * avg;
+    const max = Math.max(1, ...rows.map((r) => r.views));
+    const busiest = rows.reduce((b, r) => (r.views > b.views ? r : b), rows[0]);
+
+    const tile = (label: string, value: string, sub = '') =>
+      `<div class="a-card a-stat"><span class="label">${label}</span><strong>${value}</strong>${sub ? `<small>${sub}</small>` : ''}</div>`;
+    const table = (head: string[], body: string[][], empty: string) => `
+      <div class="a-scroll"><table class="a-table">
+        <thead><tr>${head.map((h) => `<th>${h}</th>`).join('')}</tr></thead>
+        <tbody>${body.length ? body.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('') : `<tr><td colspan="${head.length}" class="muted">${empty}</td></tr>`}</tbody>
+      </table></div>`;
+    const info = (r: (typeof rows)[number]) =>
+      `${fmtDay(r.day)}: ${r.views} bekeken, ${r.cart} in winkelwagen${r.sold ? `, ${r.sold} verkocht` : ''}${isPeak(r.views) ? ' · piek' : ''}`;
+
+    // Om de zoveel dagen een datum onder de grafiek
+    const every = Math.max(1, Math.ceil(rows.length / 6));
+    const bars = rows
+      .map((r, i) => {
+        const h = (r.views / max) * 100;
+        const c = r.views ? Math.min(h, (r.cart / max) * 100) : 0;
+        return `<button type="button" class="a-col${isPeak(r.views) ? ' peak' : ''}" data-i="${i}" aria-label="${esc(info(r))}" title="${esc(info(r))}">
+          <span class="a-col-v" style="height:${h}%"><span class="a-col-c" style="height:${h ? (c / h) * 100 : 0}%"></span></span>
+          ${r.sold ? '<i class="a-col-s"></i>' : ''}
+          ${i % every === 0 || i === rows.length - 1 ? `<small>${esc(fmtDay(r.day).replace(/^\S+\s/, ''))}</small>` : ''}
+        </button>`;
+      })
+      .join('');
+
+    // Gemiddeld per weekdag
+    const wk = WEEKDAYS.map(() => ({ views: 0, days: 0 }));
+    rows.forEach((r) => {
+      const w = wk[weekdayOf(r.day)];
+      w.views += r.views;
+      w.days++;
+    });
+    const wkAvg = wk.map((w) => (w.days ? w.views / w.days : 0));
+    const wkMax = Math.max(0.01, ...wkAvg);
+    const peaks = rows.filter((r) => isPeak(r.views)).reverse();
+
+    box.innerHTML = `
+      <div class="a-stats">
+        ${tile('Bekeken', String(views), `gemiddeld ${avg.toFixed(1).replace('.', ',')} per dag`)}
+        ${tile('In winkelwagen', String(total('cart')))}
+        ${tile('Verkocht', String(total('sold')))}
+        ${tile('Drukste dag', busiest?.views ? esc(fmtDay(busiest.day)) : '—', busiest?.views ? `${busiest.views} keer bekeken` : '')}
+      </div>
+      <h2>Bekeken per dag</h2>
+      <div class="a-card a-chart">
+        <div class="a-chart-max">${max}</div>
+        <div class="a-chart-bars">${bars}</div>
+        <p class="a-chart-info" data-info aria-live="polite">Wijs of tik een dag aan voor de cijfers.</p>
+        <p class="a-legend"><span><i class="k-v"></i>Bekeken</span><span><i class="k-c"></i>In winkelwagen</span><span><i class="k-s"></i>Verkocht</span><span><i class="k-p"></i>Piek</span></p>
+      </div>
+      <h2>Pieken</h2>
+      ${table(
+        ['Dag', 'Bekeken', 'In winkelwagen', 'Verkocht'],
+        peaks.map((r) => [esc(fmtDay(r.day)), String(r.views), String(r.cart), String(r.sold)]),
+        'Geen opvallende pieken in deze periode.',
+      )}
+      <p class="a-note">Een piek is een dag met minstens twee keer zoveel weergaven als gemiddeld (en minstens 3). Leg de datums naast je Instagram-stories om te zien wat werkt.</p>
+      <h2>Per weekdag</h2>
+      ${table(
+        ['Weekdag', 'Gemiddeld bekeken', ''],
+        WEEKDAYS.map((name, i) => [name, wkAvg[i].toFixed(1).replace('.', ','), `<span class="a-bar"><span style="width:${Math.round((wkAvg[i] / wkMax) * 100)}%"></span></span>`]),
+        '',
+      )}
+      <p class="a-note">Gemeten sinds ${esc(fmtDay(since))}. Elke bezoeker telt één keer per product per bezoek; dagen lopen van middernacht tot middernacht (Nederlandse tijd).</p>`;
+
+    const infoEl = box.querySelector<HTMLElement>('[data-info]')!;
+    box.querySelectorAll<HTMLButtonElement>('.a-col').forEach((b) => {
+      const show = () => {
+        infoEl.textContent = info(rows[Number(b.dataset.i)]);
+        box.querySelectorAll('.a-col').forEach((x) => x.classList.toggle('on', x === b));
+      };
+      b.addEventListener('mouseenter', show);
+      b.addEventListener('focus', show);
+      b.addEventListener('click', show);
+    });
+  };
+
+  app.querySelectorAll<HTMLButtonElement>('[data-r]').forEach((b) =>
+    b.addEventListener('click', () => {
+      app.querySelectorAll('[data-r]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+      render(b.dataset.r!);
     }),
   );
   render('30');
