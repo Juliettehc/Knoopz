@@ -314,7 +314,7 @@ async function viewProducts() {
     loadDrops().catch(() => [] as Drop[]),
   ]);
   if (error) return fail(error, 'Producten laden');
-  const dropName = new Map(drops.map((d) => [d.id, d.name_nl]));
+  const dropName = new Map(drops.map((d) => [d.id, d.published ? d.name_nl : `${d.name_nl} (verborgen)`]));
   const rows = (data as any[]).map((p) => {
     const sold = !(p.product_variants ?? []).some((v: any) => v.status !== 'sold' && v.stock > 0);
     const img = [...(p.product_images ?? [])].sort((a: any, b: any) => a.sort - b.sort)[0];
@@ -331,6 +331,9 @@ async function viewProducts() {
         <button class="filter" aria-pressed="false" data-f="sold">Verkocht</button>
         <button class="filter" aria-pressed="false" data-f="hidden">Verborgen</button>
       </div>
+      ${drops.length ? `<select class="a-search" aria-label="Filter op drop" data-drop-filter style="flex:0 1 200px"><option value="">Alle drops</option>${drops
+        .map((d) => `<option value="${esc(d.id)}">${esc(dropName.get(d.id))}</option>`)
+        .join('')}<option value="none">Geen drop</option></select>` : ''}
       <a class="btn btn-dark" href="#/product/nieuw">Nieuw product</a>
     </div>
     <p class="a-note" data-count></p>
@@ -344,11 +347,15 @@ async function viewProducts() {
   const tbody = app.querySelector<HTMLElement>('[data-rows]')!;
   const q = app.querySelector<HTMLInputElement>('[data-q]')!;
   const count = app.querySelector<HTMLElement>('[data-count]')!;
+  const dropSel = app.querySelector<HTMLSelectElement>('[data-drop-filter]');
+  dropSel?.addEventListener('change', () => render());
   let filter = 'all';
   const render = () => {
     const term = q.value.trim().toLowerCase();
+    const dropF = dropSel?.value ?? '';
     const list = rows.filter((r) => {
       if (term && !`${r.name_nl} ${r.code}`.toLowerCase().includes(term)) return false;
+      if (dropF === 'none' ? r.drop_id : dropF && r.drop_id !== dropF) return false;
       if (filter === 'available') return !r.sold && r.published;
       if (filter === 'sold') return r.sold;
       if (filter === 'hidden') return !r.published;
@@ -414,8 +421,8 @@ async function viewProduct(id: string | null) {
       <div class="a-row a-row-3">
         ${text('code', 'Productcode', { req: true, hint: 'Jullie eigen code, bijvoorbeeld KNZ-001' })}
         <label class="a-field"><span>Drop</span><select name="drop_id"><option value="">Geen drop</option>${drops
-          .map((d) => `<option value="${esc(d.id)}" ${p?.drop_id === d.id ? 'selected' : ''}>${esc(d.name_nl)}</option>`)
-          .join('')}</select></label>
+          .map((d) => `<option value="${esc(d.id)}" ${p?.drop_id === d.id ? 'selected' : ''}>${esc(d.name_nl)}${d.published ? '' : ' (verborgen)'}</option>`)
+          .join('')}</select><small data-drop-hidden hidden>Deze drop is nog verborgen. Dit product komt pas online als de drop op "Zichtbaar op de website" staat.</small></label>
         <label class="a-field"><span>Categorie</span><select name="category">
           <option value="pet" ${p?.category !== 'overhemd' ? 'selected' : ''}>Pet</option>
           <option value="overhemd" ${p?.category === 'overhemd' ? 'selected' : ''}>Overhemd</option></select></label>
@@ -432,6 +439,9 @@ async function viewProduct(id: string | null) {
       </div>
       <div class="a-row">
         <label class="a-field"><span>Prijs (€)</span><input name="price" inputmode="decimal" placeholder="bijv. 45,00" value="${esc(centsToInput(p?.price_cents))}" /></label>
+        <label class="a-field" data-size-field><span>Maat</span><input name="size" list="a-sizes" placeholder="bijv. M" value="${esc(variant?.size && variant.size !== 'one-size' ? variant.size : '')}" />
+          <datalist id="a-sizes">${['XS', 'S', 'M', 'L', 'XL', 'XXL'].map((x) => `<option value="${x}"></option>`).join('')}</datalist>
+          <small>Staat op de productpagina, bijv. "Maat: M"</small></label>
         <label class="a-field"><span>Status</span><select name="status">
           <option value="available" ${!sold ? 'selected' : ''}>Beschikbaar</option>
           <option value="sold" ${sold ? 'selected' : ''}>Verkocht (Sold out)</option></select></label>
@@ -470,6 +480,17 @@ async function viewProduct(id: string | null) {
     const parcel = form.elements.namedItem('parcel_type') as HTMLSelectElement;
     cat.addEventListener('change', () => (parcel.value = cat.value === 'overhemd' ? 'mailbox' : 'package'));
   }
+  // Maat alleen bij overhemden; bij een verborgen drop een seintje dat het product nog niet online komt
+  const catSel = form.elements.namedItem('category') as HTMLSelectElement;
+  const sizeField = form.querySelector<HTMLElement>('[data-size-field]')!;
+  const showSize = () => (sizeField.hidden = catSel.value !== 'overhemd');
+  catSel.addEventListener('change', showSize);
+  showSize();
+  const dropSel = form.elements.namedItem('drop_id') as HTMLSelectElement;
+  const dropHint = form.querySelector<HTMLElement>('[data-drop-hidden]')!;
+  const showDropHint = () => (dropHint.hidden = !drops.some((d) => d.id === dropSel.value && !d.published));
+  dropSel.addEventListener('change', showDropHint);
+  showDropHint();
   const slugInput = form.elements.namedItem('slug') as HTMLInputElement;
   let slugTouched = !!p?.slug;
   slugInput.addEventListener('input', () => (slugTouched = true));
@@ -517,9 +538,12 @@ async function viewProduct(id: string | null) {
       }
       if (error) throw error;
       const isSold = val(form, 'status') === 'sold';
-      const { error: vErr } = await sb
-        .from('product_variants')
-        .upsert({ product_id: productId, size: 'one-size', stock: isSold ? 0 : 1, status: isSold ? 'sold' : 'available' }, { onConflict: 'product_id,size' });
+      const size = (row.category === 'overhemd' && val(form, 'size').toUpperCase()) || 'one-size';
+      const vRow = { size, stock: isSold ? 0 : 1, status: isSold ? 'sold' : 'available' };
+      // Bestaande variant bijwerken (ook de maat), zodat bestellingen eraan gekoppeld blijven
+      const { error: vErr } = variant
+        ? await sb.from('product_variants').update(vRow).eq('id', variant.id)
+        : await sb.from('product_variants').insert({ product_id: productId, ...vRow });
       if (vErr) throw vErr;
       setDirty(true);
       toast(isNew ? 'Product aangemaakt. Je kunt nu foto\'s toevoegen.' : 'Opgeslagen.');
@@ -689,6 +713,7 @@ async function viewDrops() {
         <label class="a-field"><span>Volgorde</span><input name="sort" type="number" value="${esc(d?.sort ?? 0)}" /><small>Lager getal = eerder; de eerste drop staat op de homepage</small></label>
       </div>
       <label class="a-check"><input type="checkbox" name="published" ${d?.published ? 'checked' : ''} /> Zichtbaar op de website</label>
+      <small class="muted">Uit = de drop en al zijn producten staan nog niet op de website, ook niet in de shop. Zo kun je een volgende drop alvast vullen. Zet hem aan en klik op "Wijzigingen publiceren" om alles in één keer online te zetten.</small>
       <div class="a-buttons">
         <button class="btn btn-dark" type="submit">${d?.id ? 'Opslaan' : 'Drop aanmaken'}</button>
         ${d?.id ? '<button class="btn btn-danger" type="button" data-del>Verwijderen</button>' : ''}
@@ -715,7 +740,7 @@ async function viewDrops() {
 
   app.innerHTML = `
     <h1>Drops</h1>
-    ${drops.map((d) => `<h2>${esc(d.name_nl)}</h2>${photo(d)}${form(d)}`).join('')}
+    ${drops.map((d) => `<h2>${esc(d.name_nl)}${d.published ? '' : ' <span class="a-pill hidden">Verborgen</span>'}</h2>${photo(d)}${form(d)}`).join('')}
     <h2>Nieuwe drop</h2>
     ${form(null)}`;
 

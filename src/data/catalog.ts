@@ -32,6 +32,7 @@ export interface Product {
   details: T;
   buttonStory: T;
   price: number | null; // in centen; null = nog niet ingevuld
+  size: string | null; // maat van een overhemd; null = pet (verstelbaar)
   status: Status;
   images: ProductImage[];
 }
@@ -63,7 +64,7 @@ async function fromSupabase(): Promise<Catalog> {
   const [dropRows, productRows, siteRows, textRows, faqRows, settingRows] = await Promise.all([
     rest<any[]>('drops?select=*&published=eq.true&order=sort.asc,created_at.asc'),
     rest<any[]>(
-      'products?select=*,product_variants(status,stock),product_images(path_small,path_large,alt_nl,alt_en,sort)&published=eq.true&order=sort.asc,created_at.asc',
+      'products?select=*,product_variants(size,status,stock),product_images(path_small,path_large,alt_nl,alt_en,sort)&published=eq.true&order=sort.asc,created_at.asc',
     ),
     // Homepage-foto's zijn optioneel: als de tabel (nog) niet bestaat, bouwt de site gewoon met plaatshouders.
     rest<any[]>('site_images?select=*').catch(() => [] as any[]),
@@ -79,8 +80,12 @@ async function fromSupabase(): Promise<Catalog> {
     siteRows.map((r) => [r.key, { url: publicImageUrl(r.path), alt: t(r.alt_nl, r.alt_en), link: r.link || null }]),
   );
   const drops: Drop[] = dropRows.map((d) => ({ id: d.id, slug: d.slug, name: t(d.name_nl, d.name_en), intro: t(d.intro_nl, d.intro_en), image: d.image_path ? publicImageUrl(d.image_path) : null }));
-  const products: Product[] = productRows.map((p) => {
-    const variants: { status: string; stock: number }[] = p.product_variants ?? [];
+  // Producten van een drop die nog verborgen is (bijv. de volgende drop die al wordt gevuld) blijven van de site af.
+  // Verborgen drops komen niet mee uit Supabase, dus hun producten vallen hier vanzelf weg.
+  const visibleDrops = new Set(drops.map((d) => d.id));
+  const products: Product[] = productRows.filter((p) => !p.drop_id || visibleDrops.has(p.drop_id)).map((p) => {
+    const variants: { size: string; status: string; stock: number }[] = p.product_variants ?? [];
+    const size = variants.find((v) => v.size && v.size !== 'one-size')?.size ?? null;
     const available = variants.some((v) => v.status !== 'sold' && v.stock > 0);
     const images = [...(p.product_images ?? [])]
       .sort((a, b) => a.sort - b.sort)
@@ -96,6 +101,7 @@ async function fromSupabase(): Promise<Catalog> {
       details: t(p.details_nl, p.details_en),
       buttonStory: t(p.button_story_nl, p.button_story_en),
       price: p.price_cents,
+      size,
       status: available ? 'available' : 'sold',
       images,
     };
@@ -126,6 +132,7 @@ function sample(): Catalog {
       details: { nl: '', en: '' },
       buttonStory: { nl: '', en: '' },
       price: null,
+      size: null,
       status: sold.has(i + 1) ? 'sold' : 'available',
       images: [],
     };

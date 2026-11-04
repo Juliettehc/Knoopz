@@ -85,7 +85,7 @@ const shipCosts = sh.nl === null ? '' :
       </div>
       <div class="facts muted">
         <span data-sold-hide hidden={sold}>{t(lang, 'product.unique')}</span>
-        <span>{t(lang, 'product.size')}</span>
+        <span>{p.size ? `${t(lang, 'product.sizeLabel')}: ${p.size}` : t(lang, 'product.size')}</span>
         <span>{t(lang, 'product.code')}: {p.code}</span>
       </div>
       <button type="button" class="btn btn-dark btn-block" data-sold-hide hidden={sold} data-add={p.id} data-label-add={t(lang, 'product.add')} data-label-in={t(lang, 'product.inCart')}>
@@ -101,7 +101,7 @@ const shipCosts = sh.nl === null ? '' :
         </details>
         <details>
           <summary>{t(lang, 'product.button')}</summary>
-          {textBlocks(text(p.buttonStory[lang], nl ? '[Herkomst en verhaal van de vintage knoop op deze pet.]' : '[Origin and story of the vintage button on this cap.]')).map(({ Tag, cls, html }) => <Tag class={cls} set:html={html} />)}
+          {textBlocks(text(p.buttonStory[lang], nl ? `[Herkomst en verhaal van de vintage knoop op ${p.category === 'overhemd' ? 'dit overhemd' : 'deze pet'}.]` : `[Origin and story of the vintage button on this ${p.category === 'overhemd' ? 'shirt' : 'cap'}.]`)).map(({ Tag, cls, html }) => <Tag class={cls} set:html={html} />)}
         </details>
         <details>
           <summary>{t(lang, 'product.shipping')}</summary>
