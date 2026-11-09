@@ -42,6 +42,20 @@ const labels = {
 </style>
 
 <script>
+  // Bron uit een gedeelde link (bijv. ?bron=instagram) onthouden zolang dit tabblad open is,
+  // zodat ook een aanmelding via de pop-up op een andere pagina bij die bron hoort
+  const BRON = 'knoopz-bron';
+  const fromUrl = new URLSearchParams(location.search).get('bron')?.trim().toLowerCase() ?? '';
+  const sourceOf = () => {
+    try {
+      if (/^[a-z0-9-]{1,30}$/.test(fromUrl)) sessionStorage.setItem(BRON, fromUrl);
+      return sessionStorage.getItem(BRON) || 'site';
+    } catch {
+      return /^[a-z0-9-]{1,30}$/.test(fromUrl) ? fromUrl : 'site';
+    }
+  };
+  const source = sourceOf();
+
   document.querySelectorAll<HTMLFormElement>('[data-ea-form]').forEach((form) => {
     const L = JSON.parse(form.dataset.labels || '{}');
     const msg = form.querySelector<HTMLElement>('[data-msg]')!;
@@ -72,6 +86,7 @@ const labels = {
           body: JSON.stringify({
             email,
             lang: form.dataset.lang,
+            source,
             website: (form.elements.namedItem('website') as HTMLInputElement).value,
             ms: Date.now() - started,
           }),

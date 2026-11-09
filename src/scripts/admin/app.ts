@@ -842,7 +842,13 @@ async function viewEarlyAccess(dropId?: string) {
   }
   const popup: any = popupRes.data ?? {};
   const eas = (eaRes.data ?? []) as EarlyAccess[];
-  const signups = (signRes.data ?? []) as { id: string; email: string; lang: string; created_at: string }[];
+  const signups = (signRes.data ?? []) as { id: string; email: string; lang: string; created_at: string; source?: string | null }[];
+  // Bron van de aanmelding (uit de gedeelde link ?bron=...); leeg = via de site
+  const sourceLabel = (s: string | null | undefined) =>
+    !s || s === 'site' ? 'Site' : s === 'instagram' ? 'Instagram' : s === 'tiktok' ? 'TikTok' : s.charAt(0).toUpperCase() + s.slice(1);
+  const bySource = new Map<string, number>();
+  for (const s of signups) bySource.set(sourceLabel(s.source), (bySource.get(sourceLabel(s.source)) ?? 0) + 1);
+  const shareLink = (bron: string, lang: 'nl' | 'en' = 'nl') => `https://knoopz.nl${lang === 'en' ? '/en' : ''}/early-access/?bron=${bron}`;
   const sends = (sendRes.data ?? []) as { drop_id: string; email: string }[];
 
   // Standaard de eerste drop met early access, anders de eerste verborgen drop
@@ -961,15 +967,28 @@ async function viewEarlyAccess(dropId?: string) {
     </div>`
     }
 
+    <h2>Links om te delen</h2>
+    <div class="a-card">
+      <p class="a-note">Een aanmeldpagina met de foto en tekst van de pop-up. Iedereen komt in dezelfde lijst hieronder; aan de link zie je waar ze vandaan kwamen.</p>
+      <p class="a-note">${[
+        ['Instagram', 'instagram'],
+        ['TikTok', 'tiktok'],
+      ]
+        .map(([n, b]) => `<strong>${n}:</strong> <code>${esc(shareLink(b))}</code> <button type="button" class="a-link" data-share="${esc(shareLink(b))}">Kopieer</button>`)
+        .join('<br>')}<br><strong>Engels (Instagram):</strong> <code>${esc(shareLink('instagram', 'en'))}</code> <button type="button" class="a-link" data-share="${esc(shareLink('instagram', 'en'))}">Kopieer</button></p>
+      <small class="muted">Andere bron? Verander het woord achter <code>?bron=</code>, bijvoorbeeld <code>?bron=nieuwsbrief</code> (kleine letters, geen spaties).</small>
+    </div>
+
     <h2>Aanmelders (${signups.length})</h2>
+    ${signups.length ? `<div class="a-stats">${[...bySource].sort((a, b) => b[1] - a[1]).map(([n, c]) => stat(esc(n), c)).join('')}</div>` : ''}
     ${
       signups.length
         ? `<div class="a-buttons"><button class="btn btn-outline" type="button" data-csv>Download als CSV (Excel)</button></div>
     <div class="a-scroll"><table class="a-table">
-      <thead><tr><th>E-mailadres</th><th>Taal</th><th class="hide-sm">Aangemeld</th><th></th></tr></thead>
+      <thead><tr><th>E-mailadres</th><th>Bron</th><th class="hide-sm">Taal</th><th class="hide-sm">Aangemeld</th><th></th></tr></thead>
       <tbody>${signups
         .map(
-          (s) => `<tr data-id="${esc(s.id)}"><td>${esc(s.email)}</td><td>${s.lang === 'en' ? 'Engels' : 'Nederlands'}</td>
+          (s) => `<tr data-id="${esc(s.id)}"><td>${esc(s.email)}</td><td>${esc(sourceLabel(s.source))}</td><td class="hide-sm">${s.lang === 'en' ? 'Engels' : 'Nederlands'}</td>
           <td class="hide-sm">${esc(new Date(s.created_at).toLocaleString('nl-NL', { dateStyle: 'medium', timeStyle: 'short' }))}</td>
           <td class="a-cell-actions"><button class="a-link" data-unsub>Verwijderen</button></td></tr>`,
         )
@@ -1089,10 +1108,22 @@ async function viewEarlyAccess(dropId?: string) {
     });
   }
 
+  // Links om te delen
+  app.querySelectorAll<HTMLButtonElement>('[data-share]').forEach((b) =>
+    b.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(b.dataset.share!);
+        toast('Link gekopieerd.');
+      } catch {
+        toast('Kopiëren lukt niet; selecteer de link en kopieer hem zelf.', true);
+      }
+    }),
+  );
+
   // Aanmelders
   app.querySelector('[data-csv]')?.addEventListener('click', () => {
     const q = (v: string) => `"${v.replace(/"/g, '""')}"`;
-    const rows = [['email', 'taal', 'aangemeld'], ...signups.map((s) => [s.email, s.lang, new Date(s.created_at).toLocaleString('nl-NL')])];
+    const rows = [['email', 'bron', 'taal', 'aangemeld'], ...signups.map((s) => [s.email, sourceLabel(s.source), s.lang, new Date(s.created_at).toLocaleString('nl-NL')])];
     // Puntkomma en BOM, zodat Excel (NL) het meteen goed opent
     const csv = '﻿' + rows.map((r) => r.map(q).join(';')).join('\r\n');
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
