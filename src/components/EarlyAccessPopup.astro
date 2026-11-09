@@ -17,8 +17,8 @@ const { lang } = Astro.props;
       <span class="eyebrow">{t(lang, 'ea.label')}</span>
       <h2 class="h2" id="eap-title" data-eap-title></h2>
       <div class="eap-text" data-eap-text></div>
-      <EarlyAccessForm lang={lang} />
     </div>
+    <div class="eap-form"><EarlyAccessForm lang={lang} /></div>
   </div>
 </dialog>
 
@@ -26,24 +26,28 @@ const { lang } = Astro.props;
   .eap { padding: 0; border: 0; background: transparent; max-width: min(860px, calc(100vw - 32px)); width: 100%; max-height: calc(100dvh - 32px); overflow: auto; color: var(--ink); }
   .eap:focus { outline: none; }
   .eap::backdrop { background: rgba(20, 20, 20, 0.55); }
-  .eap-box { position: relative; display: grid; grid-template-columns: 1fr 1fr; background: var(--bg); }
-  .eap-box:not(:has(.eap-img:not([hidden]))) { grid-template-columns: 1fr; max-width: 520px; margin: 0 auto; }
-  .eap-img { background: var(--line); min-height: 100%; }
+  /* Foto links over de volle hoogte, tekst en aanmelden rechts */
+  .eap-box { position: relative; display: grid; grid-template-columns: 1fr 1fr; grid-template-areas: 'img body' 'img form'; background: var(--bg); }
+  .eap-box:not(:has(.eap-img:not([hidden]))) { grid-template-columns: 1fr; grid-template-areas: 'body' 'form'; max-width: 520px; margin: 0 auto; }
+  .eap-img { grid-area: img; background: var(--line); min-height: 100%; }
   .eap-img :global(img) { width: 100%; height: 100%; object-fit: cover; display: block; }
-  .eap-body { display: flex; flex-direction: column; gap: 16px; padding: 48px 40px 36px; }
+  .eap-body { grid-area: body; align-self: end; display: flex; flex-direction: column; gap: 16px; padding: 48px 40px 0; }
+  .eap-form { grid-area: form; align-self: start; padding: 20px 40px 36px; }
   .eap-text { display: flex; flex-direction: column; gap: 10px; }
   .eap-text :global(p) { margin: 0; line-height: 1.6; }
   .eap-close { position: absolute; top: 8px; right: 8px; z-index: 2; width: 44px; height: 44px; border: 0; background: var(--bg); color: var(--ink); font-size: 18px; cursor: pointer; }
-  /* Telefoon: compact, zodat de site erachter zichtbaar blijft */
+  /* Telefoon: foto klein naast de tekst (hele foto zichtbaar), aanmelden over de volle breedte eronder */
   @media (max-width: 760px) {
-    .eap { max-width: calc(100vw - 40px); }
-    .eap-box { grid-template-columns: 1fr; }
-    .eap-img { height: min(22vh, 180px); min-height: 0; overflow: hidden; }
-    .eap-img :global(img) { object-position: center 35%; }
-    .eap-body { padding: 20px 20px 18px; gap: 10px; }
-    .eap-body .h2 { font-size: 28px; line-height: 1.1; }
-    .eap-text :global(p) { font-size: 15px; line-height: 1.5; }
-    .eap-close { width: 36px; height: 36px; font-size: 15px; top: 6px; right: 6px; }
+    .eap { max-width: calc(100vw - 32px); }
+    .eap-box { grid-template-columns: 40% 1fr; grid-template-areas: 'img body' 'form form'; }
+    /* minstens staand 4:5; is de tekst langer, dan groeit de foto mee in hoogte */
+    .eap-img { min-height: calc((100vw - 32px) * 0.4 * 1.25); align-self: stretch; }
+    .eap-body { align-self: center; gap: 8px; padding: 16px 40px 16px 16px; }
+    .eap-body .eyebrow { font-size: 10px; }
+    .eap-body .h2 { font-size: 24px; line-height: 1.1; }
+    .eap-text :global(p) { font-size: 14px; line-height: 1.45; }
+    .eap-form { padding: 16px; }
+    .eap-close { width: 34px; height: 34px; font-size: 14px; top: 4px; right: 4px; }
   }
 </style>
 
