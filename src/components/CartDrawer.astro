@@ -90,6 +90,8 @@ const labels = {
 <script>
   import { getCart, removeFromCart, onCartChange } from '../scripts/cart';
   import { fetchStatus } from '../scripts/live';
+  import { fetchAccessItems } from '../scripts/access';
+  import { publicImageUrl } from '../lib/supabase-config';
 
   type Item = { id: string; name: string; price: string; cents: number | null; url: string; status: string; img: string | null };
   const root = document.querySelector<HTMLElement>('[data-cart]')!;
@@ -162,6 +164,27 @@ const labels = {
   document.addEventListener('knoopz:open-cart', () => setOpen(true));
   onCartChange(render);
   render();
+
+  // Early access: producten uit een drop die nog niet publiek is staan niet in de gebouwde lijst; met de code ophalen
+  const lang = document.documentElement.lang === 'en' ? 'en' : 'nl';
+  const loadEarly = async () => {
+    const missing = getCart().filter((id) => !catalog.has(id));
+    if (missing.length === 0) return;
+    for (const i of await fetchAccessItems(missing)) {
+      catalog.set(i.id, {
+        id: i.id,
+        name: (lang === 'en' && i.name_en) || i.name_nl,
+        price: i.price_cents === null ? labels.total : new Intl.NumberFormat(labels.locale, { style: 'currency', currency: 'EUR' }).format(i.price_cents / 100),
+        cents: i.price_cents,
+        url: `${lang === 'en' ? '/en' : ''}/drops/${i.drop_slug}/#${i.slug}`,
+        status: i.available ? 'available' : 'sold',
+        img: i.images[0] ? publicImageUrl(i.images[0].small) : null,
+      });
+    }
+    render();
+  };
+  loadEarly();
+  onCartChange(loadEarly);
 
   // Live controleren of stukken in de winkelwagen intussen verkocht zijn
   const checkLive = async () => {

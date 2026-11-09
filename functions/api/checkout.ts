@@ -2,6 +2,7 @@
 import { json, UUID, thanksPath, type Env } from '../../server/env';
 import { rpc } from '../../server/supabase';
 import { createPayment } from '../../server/mollie';
+import { accessCodes } from '../../server/early-access';
 
 export const onRequestPost = async ({ request, env }: { request: Request; env: Env }) => {
   let body: any;
@@ -24,9 +25,13 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: E
   const lang = body?.lang === 'en' ? 'en' : 'nl';
   const replace = typeof body?.replace === 'string' && UUID.test(body.replace) ? body.replace : null;
   const code = typeof body?.code === 'string' && body.code.trim() ? body.code.slice(0, 40) : null;
+  const access = accessCodes(body?.access);
 
   let order: any;
   try {
+    // Producten uit een drop die nog niet publiek is: alleen met een geldige early access-code
+    const blocked = await rpc<string[]>(env, 'blocked_products', { p_products: products, p_access: access });
+    if (blocked?.length) return json({ error: 'unavailable', unavailable: blocked }, 409);
     order = await rpc(env, 'create_order', { p_products: products, p_customer: customer, p_code: code, p_lang: lang, p_replace: replace });
   } catch (e) {
     console.error(e);

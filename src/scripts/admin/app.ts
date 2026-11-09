@@ -1,4 +1,4 @@
-// KNOOPZ beheer: inloggen, producten, foto's, drops, bestellingen, kortingscodes, instellingen en publiceren.
+// KNOOPZ beheer: inloggen, producten, foto's, drops, early access, bestellingen, kortingscodes, instellingen en publiceren.
 // Werkt rechtstreeks met Supabase. Wat wel en niet mag, bepaalt de database (Row Level Security).
 
 import { createClient, type Session } from '@supabase/supabase-js';
@@ -140,6 +140,7 @@ async function route() {
 
   if (section === 'product') return viewProduct(id === 'nieuw' ? null : id);
   if (section === 'drops') return viewDrops();
+  if (section === 'early-access') return viewEarlyAccess();
   if (section === 'overzicht' && id) return viewProductStats(id);
   if (section === 'overzicht') return viewStats();
   if (section === 'bestellingen') return viewOrders();
@@ -713,7 +714,7 @@ async function viewDrops() {
         <label class="a-field"><span>Volgorde</span><input name="sort" type="number" value="${esc(d?.sort ?? 0)}" /><small>Lager getal = eerder; de eerste drop staat op de homepage</small></label>
       </div>
       <label class="a-check"><input type="checkbox" name="published" ${d?.published ? 'checked' : ''} /> Zichtbaar op de website</label>
-      <small class="muted">Uit = de drop en al zijn producten staan nog niet op de website, ook niet in de shop. Zo kun je een volgende drop alvast vullen. Zet hem aan en klik op "Wijzigingen publiceren" om alles in één keer online te zetten.</small>
+      <small class="muted">Uit = de drop en al zijn producten staan nog niet op de website, ook niet in de shop. Zo kun je een volgende drop alvast vullen. Zet hem aan en klik op "Wijzigingen publiceren" om alles in één keer online te zetten. Met early access (zie <a href="#/early-access">Early access</a>) komt hij pas online op de publieke start.</small>
       <div class="a-buttons">
         <button class="btn btn-dark" type="submit">${d?.id ? 'Opslaan' : 'Drop aanmaken'}</button>
         ${d?.id ? '<button class="btn btn-danger" type="button" data-del>Verwijderen</button>' : ''}
@@ -806,6 +807,301 @@ async function viewDrops() {
       viewDrops();
     });
   });
+}
+
+// ---------- early access ----------
+// Pop-up op de site, per drop de early access (code, starttijden, mail versturen) en de lijst met aanmelders.
+type EarlyAccess = { drop_id: string; code: string; early_access_start: string | null; public_start: string | null };
+
+const newAccessCode = () => {
+  const abc = 'abcdefghjkmnpqrstuvwxyz23456789';
+  return Array.from(crypto.getRandomValues(new Uint8Array(10)), (n) => abc[n % abc.length]).join('');
+};
+// <input type="datetime-local"> werkt met de tijd op deze computer; de database met UTC
+const toLocalInput = (iso: string | null) => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+};
+const fromLocalInput = (v: string) => (v ? new Date(v).toISOString() : null);
+const dateNl = (iso: string | null) =>
+  iso ? new Intl.DateTimeFormat('nl-NL', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }).format(new Date(iso)) : '—';
+
+async function viewEarlyAccess(dropId?: string) {
+  app.innerHTML = '<p class="muted">Laden…</p>';
+  const [popupRes, eaRes, signRes, sendRes, drops] = await Promise.all([
+    sb.from('early_access_popup').select('*').eq('id', 1).maybeSingle(),
+    sb.from('drop_early_access').select('*'),
+    sb.from('early_access_signups').select('*').order('created_at', { ascending: false }),
+    sb.from('early_access_sends').select('drop_id,email'),
+    loadDrops().catch(() => [] as Drop[]),
+  ]);
+  if (popupRes.error || eaRes.error || signRes.error || sendRes.error) {
+    app.innerHTML = `<h1>Early access</h1><p class="a-note">Voer eerst <strong>supabase/migrations/015_early_access.sql</strong> uit in Supabase.</p>`;
+    return;
+  }
+  const popup: any = popupRes.data ?? {};
+  const eas = (eaRes.data ?? []) as EarlyAccess[];
+  const signups = (signRes.data ?? []) as { id: string; email: string; lang: string; created_at: string }[];
+  const sends = (sendRes.data ?? []) as { drop_id: string; email: string }[];
+
+  // Standaard de eerste drop met early access, anders de eerste verborgen drop
+  const drop =
+    drops.find((d) => d.id === dropId) ??
+    drops.find((d) => eas.some((e) => e.drop_id === d.id)) ??
+    drops.find((d) => !d.published) ??
+    drops[0];
+  const ea = eas.find((e) => e.drop_id === drop?.id) ?? null;
+  const code = ea?.code ?? newAccessCode();
+  const link = (lang: 'nl' | 'en') => (drop ? `${location.origin}${lang === 'en' ? '/en' : ''}/drops/${drop.slug}/?toegang=${code}` : '');
+  const sentHere = new Set(sends.filter((s) => s.drop_id === drop?.id).map((s) => s.email));
+  const toSend = signups.filter((s) => !sentHere.has(s.email)).length;
+  const now = Date.now();
+  const eaOpen = !!ea?.early_access_start && Date.parse(ea.early_access_start) <= now;
+  const isPublic = !!drop?.published && (!ea?.public_start || Date.parse(ea.public_start) <= now);
+  const status = !ea
+    ? 'Nog geen early access ingesteld'
+    : isPublic
+      ? 'Publiek: iedereen kan de drop zien'
+      : eaOpen
+        ? 'Early access is open: alleen met de link'
+        : `Nog dicht${ea.early_access_start ? `. Early access opent ${dateNl(ea.early_access_start)}` : ''}`;
+  const stat = (label: string, value: string | number, sub = '') =>
+    `<div class="a-card a-stat"><span class="label">${label}</span><strong>${value}</strong>${sub ? `<small>${sub}</small>` : ''}</div>`;
+
+  app.innerHTML = `
+    <h1>Early access</h1>
+    <p class="a-note">Zo werkt het: bezoekers melden zich aan via de pop-up. Als de early access van een drop opent, stuur je hieronder de mail met de link.
+    Alleen wie de link heeft, kan de drop dan zien en kopen. Vanaf de publieke start kan iedereen erbij.</p>
+
+    <h2>Pop-up op de website</h2>
+    <form class="a-form a-card" data-popup novalidate>
+      <label class="a-check"><input type="checkbox" name="enabled" ${popup.enabled ? 'checked' : ''} /> Pop-up tonen op de website</label>
+      <small class="muted">Aan- en uitzetten en tekst wijzigen werkt direct, je hoeft niet te publiceren. Wie de pop-up heeft weggeklikt, ziet hem opnieuw zodra je hier iets wijzigt. Wie zich al heeft aangemeld, ziet hem niet meer.</small>
+      <div class="a-row">
+        <label class="a-field"><span>Titel (NL) *</span><input name="title_nl" value="${esc(popup.title_nl)}" placeholder="bijv. Early access Drop 2" /></label>
+        <label class="a-field"><span>Titel (EN)</span><input name="title_en" value="${esc(popup.title_en)}" placeholder="bijv. Early access Drop 2" /></label>
+      </div>
+      <div class="a-row">
+        <label class="a-field"><span>Tekst (NL)</span><textarea name="text_nl" placeholder="bijv. Meld je aan en shop Drop 2 als eerste.">${esc(popup.text_nl)}</textarea><small>${FORMAT_HELP}</small></label>
+        <label class="a-field"><span>Tekst (EN)</span><textarea name="text_en">${esc(popup.text_en)}</textarea></label>
+      </div>
+      <div class="a-buttons"><button class="btn btn-dark" type="submit">Pop-up opslaan</button></div>
+    </form>
+    <div class="a-card a-slot" data-popup-photo>
+      <div class="a-slot-img" style="aspect-ratio:4/5;max-width:240px">${popup.image_path ? `<img src="${esc(publicImageUrl(popup.image_path))}" alt="" />` : '<span>Nog geen foto</span>'}</div>
+      <div class="a-slot-info">
+        <strong>Foto in de pop-up</strong>
+        <small class="muted">Staand werkt het best (4:5). Zonder foto toont de pop-up alleen tekst en het aanmeldveld.</small>
+        <div class="a-buttons">
+          <label class="btn btn-outline" style="cursor:pointer">${popup.image_path ? 'Vervangen' : 'Foto kiezen'}<input type="file" accept="image/jpeg,image/png,image/webp" hidden data-file /></label>
+          ${popup.image_path ? '<button type="button" class="a-link" data-remove>Verwijderen</button>' : ''}
+        </div>
+        <p class="a-note" data-progress></p>
+      </div>
+    </div>
+
+    <h2>Early access per drop</h2>
+    ${
+      !drop
+        ? '<p class="a-note">Maak eerst een drop aan bij Drops.</p>'
+        : `
+    <div class="a-filters" role="group" aria-label="Kies een drop">
+      ${drops.map((d) => `<button class="filter" aria-pressed="${d.id === drop.id}" data-drop="${esc(d.id)}">${esc(d.name_nl)}${d.published ? '' : ' (verborgen)'}</button>`).join('')}
+    </div>
+    <form class="a-form a-card" data-ea novalidate>
+      <p class="a-note"><strong>${esc(drop.name_nl)}:</strong> ${esc(status)}</p>
+      <div class="a-row">
+        <label class="a-field"><span>Start early access *</span><input name="early_access_start" type="datetime-local" value="${esc(toLocalInput(ea?.early_access_start ?? null))}" /><small>Vanaf dit moment werkt de link</small></label>
+        <label class="a-field"><span>Publieke start *</span><input name="public_start" type="datetime-local" value="${esc(toLocalInput(ea?.public_start ?? null))}" /><small>Vanaf dit moment kan iedereen erbij</small></label>
+      </div>
+      <div class="a-row">
+        <label class="a-field"><span>Toegangscode</span><input name="code" value="${esc(code)}" autocapitalize="none" spellcheck="false" /><small>Kleine letters, cijfers of - (4 tot 40 tekens). Eén code voor iedereen; hij zit in de link. Verander je hem, dan werkt de oude link niet meer.</small></label>
+        <div class="a-buttons" style="align-self:end"><button type="button" class="btn btn-outline" data-newcode>Nieuwe code</button></div>
+      </div>
+      <p class="a-note">Link (NL): <code>${esc(link('nl'))}</code><br>Link (EN): <code>${esc(link('en'))}</code>
+      ${ea ? '<br><button type="button" class="a-link" data-copy>Kopieer link (NL)</button>' : '<br>De link werkt pas na opslaan.'}</p>
+      <p class="a-note"><strong>Let op:</strong> zet de drop bij <a href="#/drops">Drops</a> op "Zichtbaar op de website" wanneer hij klaar is. Hij komt toch pas voor iedereen online op de publieke start.
+      Klik na de publieke start nog één keer op <strong>Wijzigingen publiceren</strong>, zodat de drop ook in het Shop-menu en op de homepage staat. Producten in de drop moeten zelf ook op zichtbaar staan.</p>
+      <div class="a-buttons">
+        <button class="btn btn-dark" type="submit">Opslaan</button>
+        ${ea ? '<button class="btn btn-danger" type="button" data-del>Early access verwijderen</button>' : ''}
+      </div>
+    </form>
+
+    <h3>Mail met de link</h3>
+    <div class="a-stats">
+      ${stat('Aanmelders', signups.length)}
+      ${stat('Mail al gehad', sentHere.size, esc(drop.name_nl))}
+      ${stat('Nog te versturen', toSend)}
+    </div>
+    <form class="a-form a-card" data-test novalidate>
+      <p class="a-note">Stuur eerst een testmail naar jezelf: je krijgt de aanmeldbevestiging en de mail met de link (NL en EN). De teksten pas je aan bij <a href="#/emails">E-mails</a>.</p>
+      <div class="a-row">
+        <label class="a-field"><span>Naar</span><input name="to" type="email" value="${esc(session?.user.email ?? '')}" /></label>
+        <div class="a-buttons" style="align-self:end"><button class="btn btn-outline" type="submit" ${ea ? '' : 'disabled'}>Stuur testmail</button></div>
+      </div>
+    </form>
+    <div class="a-card">
+      <p class="a-note">${
+        !ea
+          ? 'Sla eerst de early access van deze drop op.'
+          : !eaOpen
+            ? 'Je kunt de mail versturen zodra de early access is begonnen.'
+            : toSend === 0
+              ? 'Iedereen heeft de mail van deze drop al gekregen. Nieuwe aanmelders kun je later nog een mail sturen; wie hem al had, krijgt hem niet nog een keer.'
+              : `De mail gaat naar ${toSend} ${toSend === 1 ? 'aanmelder' : 'aanmelders'} die hem nog niet hebben gekregen.`
+      }</p>
+      <div class="a-buttons"><button class="btn btn-primary" type="button" data-send ${ea && eaOpen && toSend > 0 ? '' : 'disabled'}>Early access-mail versturen</button></div>
+      <p class="a-note" data-send-msg></p>
+    </div>`
+    }
+
+    <h2>Aanmelders (${signups.length})</h2>
+    ${
+      signups.length
+        ? `<div class="a-buttons"><button class="btn btn-outline" type="button" data-csv>Download als CSV (Excel)</button></div>
+    <div class="a-scroll"><table class="a-table">
+      <thead><tr><th>E-mailadres</th><th>Taal</th><th class="hide-sm">Aangemeld</th><th></th></tr></thead>
+      <tbody>${signups
+        .map(
+          (s) => `<tr data-id="${esc(s.id)}"><td>${esc(s.email)}</td><td>${s.lang === 'en' ? 'Engels' : 'Nederlands'}</td>
+          <td class="hide-sm">${esc(new Date(s.created_at).toLocaleString('nl-NL', { dateStyle: 'medium', timeStyle: 'short' }))}</td>
+          <td class="a-cell-actions"><button class="a-link" data-unsub>Verwijderen</button></td></tr>`,
+        )
+        .join('')}</tbody>
+    </table></div>`
+        : '<p class="a-note">Nog geen aanmelders.</p>'
+    }`;
+
+  // Pop-up
+  const pf = app.querySelector<HTMLFormElement>('[data-popup]')!;
+  pf.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (checked(pf, 'enabled') && !val(pf, 'title_nl')) return toast('Vul een titel (NL) in voordat je de pop-up aanzet.', true);
+    const { error } = await sb
+      .from('early_access_popup')
+      .update({ enabled: checked(pf, 'enabled'), title_nl: orNull(val(pf, 'title_nl')), title_en: orNull(val(pf, 'title_en')), text_nl: orNull(val(pf, 'text_nl')), text_en: orNull(val(pf, 'text_en')) })
+      .eq('id', 1);
+    if (error) return fail(error, 'Pop-up opslaan');
+    toast(checked(pf, 'enabled') ? 'Opgeslagen. De pop-up staat aan.' : 'Opgeslagen. De pop-up staat uit.');
+    viewEarlyAccess(drop?.id);
+  });
+  const photo = app.querySelector<HTMLElement>('[data-popup-photo]')!;
+  const progress = photo.querySelector<HTMLElement>('[data-progress]')!;
+  photo.querySelector<HTMLInputElement>('[data-file]')!.addEventListener('change', async (e) => {
+    const file = (e.target as HTMLInputElement).files?.[0];
+    if (!file) return;
+    progress.textContent = 'Bezig met uploaden…';
+    try {
+      const blob = await resizeImage(file, 1200, 0.86);
+      const path = `popup/${crypto.randomUUID()}.jpg`;
+      const up = await sb.storage.from(IMAGE_BUCKET).upload(path, blob, { contentType: 'image/jpeg', cacheControl: '31536000' });
+      if (up.error) throw up.error;
+      const { error } = await sb.from('early_access_popup').update({ image_path: path }).eq('id', 1);
+      if (error) throw error;
+      if (popup.image_path) await sb.storage.from(IMAGE_BUCKET).remove([popup.image_path]);
+      toast('Foto opgeslagen.');
+      viewEarlyAccess(drop?.id);
+    } catch (err) {
+      progress.textContent = '';
+      fail(err, 'Uploaden');
+    }
+  });
+  photo.querySelector('[data-remove]')?.addEventListener('click', async () => {
+    if (!confirm('Deze foto verwijderen?')) return;
+    const { error } = await sb.from('early_access_popup').update({ image_path: null }).eq('id', 1);
+    if (error) return fail(error, 'Verwijderen');
+    await sb.storage.from(IMAGE_BUCKET).remove([popup.image_path]);
+    viewEarlyAccess(drop?.id);
+  });
+
+  // Early access per drop
+  app.querySelectorAll<HTMLButtonElement>('[data-drop]').forEach((b) => b.addEventListener('click', () => viewEarlyAccess(b.dataset.drop)));
+  const ef = app.querySelector<HTMLFormElement>('[data-ea]');
+  if (ef && drop) {
+    ef.querySelector('[data-newcode]')!.addEventListener('click', () => {
+      (ef.elements.namedItem('code') as HTMLInputElement).value = newAccessCode();
+    });
+    ef.querySelector('[data-copy]')?.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(link('nl'));
+        toast('Link gekopieerd.');
+      } catch {
+        toast('Kopiëren lukt niet; selecteer de link en kopieer hem zelf.', true);
+      }
+    });
+    ef.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const c = val(ef, 'code').toLowerCase();
+      if (!/^[a-z0-9-]{4,40}$/.test(c)) return toast('De code mag alleen kleine letters, cijfers en - bevatten (4 tot 40 tekens).', true);
+      const start = fromLocalInput(val(ef, 'early_access_start'));
+      const pub = fromLocalInput(val(ef, 'public_start'));
+      if (!start || !pub) return toast('Vul beide tijden in.', true);
+      if (Date.parse(start) >= Date.parse(pub)) return toast('De early access moet beginnen vóór de publieke start.', true);
+      if (ea && ea.code !== c && !confirm('Je verandert de code. De link die al is verstuurd, werkt dan niet meer. Doorgaan?')) return;
+      const { error } = await sb.from('drop_early_access').upsert({ drop_id: drop.id, code: c, early_access_start: start, public_start: pub });
+      if (error) return fail(error, 'Early access opslaan');
+      toast('Early access opgeslagen. Dit werkt direct, zonder publiceren.');
+      viewEarlyAccess(drop.id);
+    });
+    ef.querySelector('[data-del]')?.addEventListener('click', async () => {
+      if (!confirm(`De early access van ${drop.name_nl} verwijderen? De link werkt dan niet meer. De drop zelf en de aanmelders blijven bestaan.`)) return;
+      const { error } = await sb.from('drop_early_access').delete().eq('drop_id', drop.id);
+      if (error) return fail(error, 'Verwijderen');
+      viewEarlyAccess(drop.id);
+    });
+
+    const tf = app.querySelector<HTMLFormElement>('[data-test]')!;
+    tf.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      try {
+        const r = await adminPost('/api/admin/early-access', { action: 'test', drop_id: drop.id, to: val(tf, 'to') });
+        toast(r.ok ? `Testmails verstuurd (${r.sent}).` : `Maar ${r.sent} van de ${r.total} testmails zijn verstuurd.`, !r.ok);
+      } catch (err) {
+        fail(err, 'Testmail versturen');
+      }
+    });
+
+    const sendBtn = app.querySelector<HTMLButtonElement>('[data-send]')!;
+    const sendMsg = app.querySelector<HTMLElement>('[data-send-msg]')!;
+    sendBtn.addEventListener('click', async () => {
+      if (!confirm(`De early access-mail van ${drop.name_nl} nu versturen naar ${toSend} ${toSend === 1 ? 'persoon' : 'mensen'}?\n\nDit kan niet ongedaan worden gemaakt.`)) return;
+      sendBtn.disabled = true;
+      sendMsg.textContent = `Bezig met versturen naar ${toSend} mensen…`;
+      try {
+        const r = await adminPost('/api/admin/early-access', { action: 'send', drop_id: drop.id });
+        alert(r.failed ? `${r.sent} van de ${r.total} mails verstuurd. ${r.failed} mislukt; klik later nog eens op versturen voor de rest.` : `Klaar: ${r.sent} mails verstuurd.`);
+      } catch (err) {
+        fail(err, 'Mail versturen');
+      }
+      viewEarlyAccess(drop.id);
+    });
+  }
+
+  // Aanmelders
+  app.querySelector('[data-csv]')?.addEventListener('click', () => {
+    const q = (v: string) => `"${v.replace(/"/g, '""')}"`;
+    const rows = [['email', 'taal', 'aangemeld'], ...signups.map((s) => [s.email, s.lang, new Date(s.created_at).toLocaleString('nl-NL')])];
+    // Puntkomma en BOM, zodat Excel (NL) het meteen goed opent
+    const csv = '﻿' + rows.map((r) => r.map(q).join(';')).join('\r\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    const a = Object.assign(document.createElement('a'), { href: url, download: `early-access-aanmelders-${new Date().toISOString().slice(0, 10)}.csv` });
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+  });
+  app.querySelectorAll<HTMLButtonElement>('[data-unsub]').forEach((b) =>
+    b.addEventListener('click', async () => {
+      const row = b.closest<HTMLElement>('tr')!;
+      const s = signups.find((x) => x.id === row.dataset.id)!;
+      if (!confirm(`${s.email} van de lijst halen? Deze persoon krijgt dan geen early access-mails meer.`)) return;
+      const { error } = await sb.from('early_access_signups').delete().eq('id', s.id);
+      if (error) return fail(error, 'Verwijderen');
+      viewEarlyAccess(drop?.id);
+    }),
+  );
 }
 
 // ---------- instellingen ----------

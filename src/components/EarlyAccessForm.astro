@@ -1,0 +1,97 @@
+---
+// Aanmelden voor early access: alleen een e-mailadres. Wordt gebruikt in de pop-up en op de early access-pagina.
+import { t, routes, type Lang } from '../i18n/ui';
+
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const labels = {
+  busy: t(lang, 'ea.busy'),
+  ok: t(lang, 'ea.ok'),
+  errEmail: t(lang, 'ea.errEmail'),
+  errServer: t(lang, 'ea.errServer'),
+};
+---
+<form class="ea-form" data-ea-form data-lang={lang} data-labels={JSON.stringify(labels)} novalidate>
+  <div class="ea-row">
+    <label class="ea-field">
+      <span class="sr">{t(lang, 'ea.email')}</span>
+      <input name="email" type="email" autocomplete="email" inputmode="email" required maxlength="200" placeholder={t(lang, 'ea.email')} />
+    </label>
+    <button type="submit" class="btn btn-dark">{t(lang, 'ea.submit')}</button>
+  </div>
+  <label class="ea-hp" aria-hidden="true">Website<input name="website" tabindex="-1" autocomplete="off" /></label>
+  <p class="ea-msg" role="status" data-msg hidden></p>
+  <p class="ea-privacy muted">{t(lang, 'ea.privacy')} <a href={routes.privacy[lang]}>{t(lang, 'ea.privacyLink')}</a></p>
+</form>
+
+<style>
+  .ea-form { display: flex; flex-direction: column; gap: 12px; width: 100%; }
+  .ea-row { display: flex; gap: 8px; }
+  .ea-field { flex: 1; min-width: 0; }
+  .ea-field input { font: inherit; font-size: 16px; padding: 12px 14px; min-height: 50px; border: 1px solid #cfc8bc; background: var(--white); color: var(--ink); border-radius: 0; width: 100%; }
+  .ea-field input:focus { outline: 2px solid var(--ink); outline-offset: 0; }
+  .ea-row .btn { flex: none; }
+  .ea-hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .ea-msg { margin: 0; font-size: 14px; }
+  .ea-msg.bad { color: var(--accent); }
+  .ea-privacy { margin: 0; font-size: 12px; line-height: 1.5; }
+  @media (max-width: 480px) {
+    .ea-row { flex-direction: column; }
+  }
+</style>
+
+<script>
+  document.querySelectorAll<HTMLFormElement>('[data-ea-form]').forEach((form) => {
+    const L = JSON.parse(form.dataset.labels || '{}');
+    const msg = form.querySelector<HTMLElement>('[data-msg]')!;
+    const btn = form.querySelector<HTMLButtonElement>('button[type=submit]')!;
+    const input = form.querySelector<HTMLInputElement>('input[name=email]')!;
+    const started = Date.now();
+    const show = (text: string, bad = false) => {
+      msg.textContent = text;
+      msg.classList.toggle('bad', bad);
+      msg.hidden = false;
+    };
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = input.value.trim();
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+        show(L.errEmail, true);
+        input.focus();
+        return;
+      }
+      const label = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = L.busy;
+      try {
+        const res = await fetch('/api/early-access', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            email,
+            lang: form.dataset.lang,
+            website: (form.elements.namedItem('website') as HTMLInputElement).value,
+            ms: Date.now() - started,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data.ok) {
+          show(L.ok);
+          form.querySelector('.ea-row')!.remove();
+          try {
+            localStorage.setItem('knoopz-ea-signed', '1');
+          } catch {}
+          form.dispatchEvent(new CustomEvent('knoopz:ea-signed', { bubbles: true }));
+          return;
+        }
+        show(data.error === 'email' ? L.errEmail : L.errServer, true);
+      } catch {
+        show(L.errServer, true);
+      }
+      btn.disabled = false;
+      btn.textContent = label;
+    });
+  });
+</script>

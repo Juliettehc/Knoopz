@@ -12,6 +12,7 @@ export const PLACEHOLDERS = [
   ['{nummer}', 'Bestelnummer, bijv. KNZ-1001'],
   ['{totaal}', 'Totaalbedrag'],
   ['{barcode}', 'PostNL-barcode (alleen bij "onderweg")'],
+  ['{drop}', 'Naam van de drop (alleen bij early access)'],
 ];
 
 // Welke mails er zijn en welke velden je per mail kunt aanpassen
@@ -19,7 +20,9 @@ export const TEMPLATES = [
   { key: 'confirmation', title: 'Betaling ontvangen', to: 'Klant', when: 'Direct nadat de klant heeft betaald', fields: ['subject', 'heading', 'body'] },
   { key: 'shipped', title: 'Bestelling onderweg', to: 'Klant', when: 'Zodra jullie in het beheer op "Label aanmaken" klikken', fields: ['subject', 'heading', 'body', 'button'] },
   { key: 'admin_new', title: 'Nieuwe bestelling', to: 'Jullie (beheerders)', when: 'Direct nadat er een bestelling is betaald', fields: ['subject', 'heading', 'body', 'button'], nlOnly: true },
-  { key: 'footer', title: 'Afsluiting (alle klantmails)', to: 'Klant', when: 'Onderaan elke klantmail', fields: ['body'] },
+  { key: 'footer', title: 'Afsluiting (alle klantmails)', to: 'Klant', when: 'Onderaan elke klantmail over een bestelling', fields: ['body'] },
+  { key: 'ea_signup', title: 'Early access: aangemeld', to: 'Aanmelder', when: 'Direct nadat iemand zich via de pop-up aanmeldt', fields: ['subject', 'heading', 'body'] },
+  { key: 'ea_open', title: 'Early access: drop is open', to: 'Alle aanmelders', when: 'Zodra jullie bij "Early access" op "Mail versturen" klikken (met de link naar de drop)', fields: ['subject', 'heading', 'body', 'button'] },
 ];
 
 export const FIELD_LABELS = { subject: 'Onderwerp', heading: 'Kop', body: 'Tekst', button: 'Tekst op de knop' };
@@ -59,6 +62,32 @@ export const DEFAULTS = {
       button: 'Bekijk in het beheer',
     },
   },
+  ea_signup: {
+    nl: {
+      subject: 'Je staat op de lijst voor early access',
+      heading: 'Je staat op de lijst!',
+      body: 'Dankjewel voor je aanmelding. Zodra de early access van de volgende KNOOPZ-drop opent, krijg je van ons een mail met een link. Daarmee ben je er eerder bij dan iedereen.\n\nHoud je inbox in de gaten!',
+    },
+    en: {
+      subject: "You're on the early access list",
+      heading: "You're on the list!",
+      body: "Thank you for signing up. As soon as early access for the next KNOOPZ drop opens, we'll email you a link. With it, you're in before everyone else.\n\nKeep an eye on your inbox!",
+    },
+  },
+  ea_open: {
+    nl: {
+      subject: 'Early access: {drop} is nu open',
+      heading: 'Je bent er als eerste bij',
+      body: 'De early access van **{drop}** is nu open. Met de knop hieronder bekijk en shop je de drop voordat hij voor iedereen online komt.\n\nElk stuk is uniek, dus op = op. Je mag deze link gerust delen met vrienden of familie.',
+      button: 'Bekijk {drop}',
+    },
+    en: {
+      subject: 'Early access: {drop} is now open',
+      heading: "You're the first to know",
+      body: 'Early access to **{drop}** is now open. Use the button below to see and shop the drop before it goes live for everyone.\n\nEvery piece is one of a kind, so once it\'s gone, it\'s gone. Feel free to share this link with friends or family.',
+      button: 'View {drop}',
+    },
+  },
   footer: {
     nl: { body: 'Vragen over je bestelling? Beantwoord gewoon deze e-mail, dan helpen we je graag.\n\nLiefs,\nKNOOPZ' },
     en: { body: "Questions about your order? Simply reply to this email and we'll be happy to help.\n\nWith love,\nKNOOPZ" },
@@ -80,11 +109,15 @@ const L = {
     order: 'Bestelling', subtotal: 'Subtotaal', discount: 'Korting', shipping: 'Verzending', free: 'Gratis', total: 'Totaal',
     vat: (v) => `Inclusief ${v} btw`, kor: 'Geen btw berekend (kleineondernemersregeling)', address: 'Bezorgadres',
     unique: 'Uniek stuk', barcode: 'Barcode PostNL', items: 'In je pakket', countries: { NL: 'Nederland', BE: 'België' },
+    early: 'Early access', link: 'Werkt de knop niet? Kopieer dan deze link:',
+    eaFooter: 'Je krijgt deze mail omdat je je hebt aangemeld voor early access bij KNOOPZ. Liever geen mails meer? Beantwoord deze mail, dan halen we je adres van de lijst.\n\nLiefs,\nKNOOPZ',
   },
   en: {
     order: 'Order', subtotal: 'Subtotal', discount: 'Discount', shipping: 'Shipping', free: 'Free', total: 'Total',
     vat: (v) => `Including ${v} VAT`, kor: 'No VAT charged (Dutch small business scheme)', address: 'Delivery address',
     unique: 'One of a kind', barcode: 'PostNL barcode', items: 'In your parcel', countries: { NL: 'The Netherlands', BE: 'Belgium' },
+    early: 'Early access', link: "Button not working? Copy this link:",
+    eaFooter: "You're receiving this email because you signed up for KNOOPZ early access. Rather not hear from us? Reply to this email and we'll take you off the list.\n\nWith love,\nKNOOPZ",
   },
 };
 
@@ -98,6 +131,7 @@ export function pick(overrides, key, lang, field) {
 const vars = (o) => ({
   voornaam: o.first_name, achternaam: o.last_name, nummer: o.number,
   totaal: money(o.lang, o.total_cents), barcode: o.postnl_barcode || '',
+  drop: o.drop_name || '',
 });
 
 // Platte tekst (voor het onderwerp)
@@ -169,10 +203,10 @@ const heading = (s) =>
 
 /**
  * Maakt een complete mail.
- * @param {'confirmation'|'shipped'|'admin_new'} key
- * @param {any} o  bestelling (zoals uit order_by_id), met items[]
+ * @param {'confirmation'|'shipped'|'admin_new'|'ea_signup'|'ea_open'} key
+ * @param {any} o  bestelling (zoals uit order_by_id), met items[]; bij early access alleen { lang, drop_name }
  * @param {any} overrides  eigen teksten uit het beheer: { [key]: { nl: {...}, en: {...} } }
- * @param {{ origin: string, adminUrl?: string }} opts
+ * @param {{ origin: string, adminUrl?: string, link?: string }} opts
  * @returns {{ subject: string, html: string }}
  */
 export function renderEmail(key, o, overrides, opts) {
@@ -181,12 +215,22 @@ export function renderEmail(key, o, overrides, opts) {
   const v = vars(o);
   const get = (f) => pick(overrides, key, lang, f);
   const subject = fill(get('subject'), v);
-  const footer = key === 'admin_new' ? '' : richText(pick(overrides, 'footer', lang, 'body'), v, `margin:0 0 12px;font-family:${BODY};font-size:14px;line-height:1.7;color:${C.muted}`);
+  const early = key === 'ea_signup' || key === 'ea_open';
+  const footStyle = `margin:0 0 12px;font-family:${BODY};font-size:14px;line-height:1.7;color:${C.muted}`;
+  const footer = key === 'admin_new' ? '' : early ? richText(t.eaFooter, v, footStyle) : richText(pick(overrides, 'footer', lang, 'body'), v, footStyle);
   const intro = heading(richText(get('heading'), v, 'margin:0').replace(/^<p style="margin:0">|<\/p>$/g, '')) + richText(get('body'), v, P);
   const eyebrow = `<p style="${SMALL}">${t.order} ${esc(o.number)}</p>`;
   let body = '';
 
-  if (key === 'confirmation') {
+  if (early) {
+    // Zonder echte link (voorbeeld in het beheer) een voorbeeldlink tonen
+    const link = opts.link || `${opts.origin}${lang === 'en' ? '/en' : ''}/drops/drop-2/?toegang=voorbeeld`;
+    body = `<p style="${SMALL}">${t.early}</p>` + intro +
+      (key === 'ea_open'
+        ? button(link, fill(get('button'), v)) +
+          `<p style="margin:0;font-family:${BODY};font-size:12px;line-height:1.6;color:${C.muted}">${t.link}<br><a href="${esc(link)}" style="color:${C.muted};word-break:break-all">${esc(link)}</a></p>`
+        : '');
+  } else if (key === 'confirmation') {
     body = eyebrow + intro + `<div style="height:12px"></div>` + summary(o) + address(o);
   } else if (key === 'shipped') {
     const track = o.tracking_url && /^https?:\/\//i.test(o.tracking_url) ? button(o.tracking_url, get('button')) : '';
@@ -214,6 +258,7 @@ export const SAMPLE_ORDER = {
   number: 'KNZ-1042',
   lang: 'nl',
   email: 'sanne@voorbeeld.nl',
+  drop_name: 'Drop 2',
   first_name: 'Sanne',
   last_name: 'de Vries',
   street: 'Kerkstraat 12',

@@ -2,6 +2,7 @@
 import { getCart, removeManyFromCart } from './cart';
 import { track } from './track';
 import { SUPABASE_URL, SUPABASE_KEY, publicImageUrl } from '../lib/supabase-config';
+import { accessCodes } from './access';
 
 type Quote = {
   error?: string;
@@ -84,7 +85,14 @@ export function initCheckout() {
       const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/quote_order`, {
         method: 'POST',
         headers: { apikey: SUPABASE_KEY, 'content-type': 'application/json' },
-        body: JSON.stringify({ p_products: ids, p_country: field('country').value, p_code: appliedCode, p_own: pendingToken() }),
+        body: JSON.stringify({
+          p_products: ids,
+          p_country: field('country').value,
+          p_code: appliedCode,
+          p_own: pendingToken(),
+          // early access-code alleen meesturen als die er is
+          ...(accessCodes().length ? { p_access: accessCodes() } : {}),
+        }),
       });
       if (!res.ok) throw new Error(String(res.status));
       quote = await res.json();
@@ -208,6 +216,7 @@ export function initCheckout() {
           terms: true,
           lang,
           replace: pendingToken(),
+          access: accessCodes(),
         }),
       });
       const data = await res.json().catch(() => ({}));

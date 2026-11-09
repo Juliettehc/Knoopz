@@ -66,3 +66,8 @@ export async function shippedMail(env: Env, o: Order, origin: string) {
 export async function adminMail(env: Env, o: Order, origin: string) {
   return renderEmail('admin_new', o, await overrides(env), { origin, adminUrl: `${origin}/admin/#/bestelling/${o.id}` });
 }
+
+// Early access: bevestiging van de aanmelding, en de mail met de link naar de drop
+export async function earlyAccessMail(env: Env, key: 'ea_signup' | 'ea_open', p: { lang: 'nl' | 'en'; drop_name?: string }, origin: string, link?: string) {
+  return renderEmail(key, p, await overrides(env), { origin, link });
+}

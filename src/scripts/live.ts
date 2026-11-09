@@ -3,6 +3,7 @@
 // en past "Sold out" en de koopknop direct aan.
 
 import { SUPABASE_URL, SUPABASE_KEY } from '../lib/supabase-config';
+import { fetchAccessItems } from './access';
 
 export type LiveStatus = Map<string, 'available' | 'sold'>;
 
@@ -19,7 +20,14 @@ export async function fetchStatus(ids: string[]): Promise<LiveStatus> {
     );
     if (!res.ok) return map;
     const rows: { product_id: string; status: string; stock: number }[] = await res.json();
+    // Producten uit een drop die nog niet publiek is, staan niet in de openbare gegevens: met early access-code navragen
+    const missing = valid.filter((id) => !rows.some((r) => r.product_id === id));
+    const early = new Map((await fetchAccessItems(missing)).map((i) => [i.id, i.available]));
     for (const id of valid) {
+      if (early.has(id)) {
+        map.set(id, early.get(id) ? 'available' : 'sold');
+        continue;
+      }
       const vs = rows.filter((r) => r.product_id === id);
       map.set(id, vs.some((v) => v.status !== 'sold' && v.stock > 0) ? 'available' : 'sold');
     }
