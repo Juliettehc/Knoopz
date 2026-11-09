@@ -848,7 +848,7 @@ async function viewEarlyAccess(dropId?: string) {
     !s || s === 'site' ? 'Site' : s === 'instagram' ? 'Instagram' : s === 'tiktok' ? 'TikTok' : s.charAt(0).toUpperCase() + s.slice(1);
   const bySource = new Map<string, number>();
   for (const s of signups) bySource.set(sourceLabel(s.source), (bySource.get(sourceLabel(s.source)) ?? 0) + 1);
-  const shareLink = (bron: string, lang: 'nl' | 'en' = 'nl') => `https://knoopz.nl${lang === 'en' ? '/en' : ''}/early-access/?bron=${bron}`;
+  const shareLink = (bron: string) => `https://knoopz.nl/early-access/?bron=${bron}`;
   const sends = (sendRes.data ?? []) as { drop_id: string; email: string }[];
 
   // Standaard de eerste drop met early access, anders de eerste verborgen drop
@@ -973,9 +973,10 @@ async function viewEarlyAccess(dropId?: string) {
       <p class="a-note">${[
         ['Instagram', 'instagram'],
         ['TikTok', 'tiktok'],
+        ['Vrienden', 'vrienden'],
       ]
         .map(([n, b]) => `<strong>${n}:</strong> <code>${esc(shareLink(b))}</code> <button type="button" class="a-link" data-share="${esc(shareLink(b))}">Kopieer</button>`)
-        .join('<br>')}<br><strong>Engels (Instagram):</strong> <code>${esc(shareLink('instagram', 'en'))}</code> <button type="button" class="a-link" data-share="${esc(shareLink('instagram', 'en'))}">Kopieer</button></p>
+        .join('<br>')}</p>
       <small class="muted">Andere bron? Verander het woord achter <code>?bron=</code>, bijvoorbeeld <code>?bron=nieuwsbrief</code> (kleine letters, geen spaties).</small>
     </div>
 
