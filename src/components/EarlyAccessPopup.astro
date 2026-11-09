@@ -2,13 +2,14 @@
 // Pop-up "Early access": foto, titel en tekst komen live uit het beheer (Early access -> Pop-up),
 // dus aan- en uitzetten werkt meteen, zonder opnieuw publiceren.
 // Wie de pop-up sluit, ziet hem pas weer als de inhoud in het beheer verandert; wie zich aanmeldt, niet meer.
+// Voorbeeld vanuit het beheer: ?popup-voorbeeld toont de opgeslagen pop-up altijd, ook als hij uit staat.
 import EarlyAccessForm from './EarlyAccessForm.astro';
 import { t, type Lang } from '../i18n/ui';
 
 interface Props { lang: Lang }
 const { lang } = Astro.props;
 ---
-<dialog class="eap" aria-labelledby="eap-title" data-eap data-lang={lang}>
+<dialog class="eap" aria-labelledby="eap-title" data-eap data-lang={lang} autofocus>
   <div class="eap-box">
     <button type="button" class="eap-close" aria-label={t(lang, 'ea.close')} data-eap-close>✕</button>
     <div class="eap-img" data-eap-img hidden></div>
@@ -23,6 +24,7 @@ const { lang } = Astro.props;
 
 <style>
   .eap { padding: 0; border: 0; background: transparent; max-width: min(860px, calc(100vw - 32px)); width: 100%; max-height: calc(100dvh - 32px); overflow: auto; color: var(--ink); }
+  .eap:focus { outline: none; }
   .eap::backdrop { background: rgba(20, 20, 20, 0.55); }
   .eap-box { position: relative; display: grid; grid-template-columns: 1fr 1fr; background: var(--bg); }
   .eap-box:not(:has(.eap-img:not([hidden]))) { grid-template-columns: 1fr; max-width: 520px; margin: 0 auto; }
@@ -45,6 +47,7 @@ const { lang } = Astro.props;
 
   const dlg = document.querySelector<HTMLDialogElement>('[data-eap]');
   const KEY = 'knoopz-ea-popup';
+  const preview = new URLSearchParams(location.search).has('popup-voorbeeld');
   const get = (k: string) => {
     try {
       return localStorage.getItem(k);
@@ -55,7 +58,7 @@ const { lang } = Astro.props;
 
   async function init() {
     if (!dlg || !SUPABASE_URL || !SUPABASE_KEY || navigator.webdriver) return;
-    if (get('knoopz-ea-signed')) return;
+    if (get('knoopz-ea-signed') && !preview) return;
     let row: any;
     try {
       const res = await fetch(`${SUPABASE_URL}/rest/v1/early_access_popup?select=*&id=eq.1`, { headers: { apikey: SUPABASE_KEY } });
@@ -64,13 +67,13 @@ const { lang } = Astro.props;
     } catch {
       return;
     }
-    if (!row?.enabled) return;
+    if (!row || (!row.enabled && !preview)) return;
     const lang = dlg.dataset.lang === 'en' ? 'en' : 'nl';
     const title = (lang === 'en' && row.title_en) || row.title_nl;
     if (!title) return;
     // Andere inhoud in het beheer = opnieuw tonen, ook aan wie hem eerder sloot
     const version = String(row.updated_at);
-    if (get(KEY) === version) return;
+    if (get(KEY) === version && !preview) return;
 
     dlg.querySelector('[data-eap-title]')!.textContent = title;
     const text = (lang === 'en' && row.text_en) || row.text_nl || '';
@@ -86,18 +89,19 @@ const { lang } = Astro.props;
       box.hidden = false;
     }
 
-    const close = () => {
+    // In het voorbeeld niets onthouden, zodat de echte pop-up later gewoon verschijnt
+    const remember = () => {
+      if (preview) return;
       try {
         localStorage.setItem(KEY, version);
       } catch {}
+    };
+    const close = () => {
+      remember();
       dlg.close();
     };
     dlg.querySelector('[data-eap-close]')!.addEventListener('click', close);
-    dlg.addEventListener('cancel', () => {
-      try {
-        localStorage.setItem(KEY, version);
-      } catch {}
-    });
+    dlg.addEventListener('cancel', remember);
     // Klik buiten het venster sluit ook
     dlg.addEventListener('click', (e) => {
       if (e.target === dlg) close();
@@ -106,7 +110,7 @@ const { lang } = Astro.props;
       // Niet over een geopend menu of winkelwagen heen
       if (document.body.classList.contains('locked')) return;
       dlg.showModal();
-    }, 1500);
+    }, preview ? 300 : 1500);
   }
   init();
 </script>

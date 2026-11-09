@@ -886,7 +886,11 @@ async function viewEarlyAccess(dropId?: string) {
         <label class="a-field"><span>Tekst (NL)</span><textarea name="text_nl" placeholder="bijv. Meld je aan en shop Drop 2 als eerste.">${esc(popup.text_nl)}</textarea><small>${FORMAT_HELP}</small></label>
         <label class="a-field"><span>Tekst (EN)</span><textarea name="text_en">${esc(popup.text_en)}</textarea></label>
       </div>
-      <div class="a-buttons"><button class="btn btn-dark" type="submit">Pop-up opslaan</button></div>
+      <div class="a-buttons">
+        <button class="btn btn-dark" type="submit">Pop-up opslaan</button>
+        <a class="btn btn-outline" href="/?popup-voorbeeld" target="_blank" rel="noopener" data-preview>Voorbeeld bekijken</a>
+      </div>
+      <small class="muted">Het voorbeeld toont de <strong>opgeslagen</strong> pop-up op de echte homepage, ook als hij uit staat. Alleen jij ziet hem dan: bezoekers niet. Op je telefoon: open <strong>${esc(location.host)}/?popup-voorbeeld</strong>.</small>
     </form>
     <div class="a-card a-slot" data-popup-photo>
       <div class="a-slot-img" style="aspect-ratio:4/5;max-width:240px">${popup.image_path ? `<img src="${esc(publicImageUrl(popup.image_path))}" alt="" />` : '<span>Nog geen foto</span>'}</div>
@@ -976,6 +980,12 @@ async function viewEarlyAccess(dropId?: string) {
 
   // Pop-up
   const pf = app.querySelector<HTMLFormElement>('[data-popup]')!;
+  pf.querySelector('[data-preview]')!.addEventListener('click', (e) => {
+    if (!val(pf, 'title_nl')) {
+      e.preventDefault();
+      toast('Vul eerst een titel (NL) in en sla op; zonder titel is er geen pop-up.', true);
+    }
+  });
   pf.addEventListener('submit', async (e) => {
     e.preventDefault();
     if (checked(pf, 'enabled') && !val(pf, 'title_nl')) return toast('Vul een titel (NL) in voordat je de pop-up aanzet.', true);
