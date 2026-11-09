@@ -36,8 +36,12 @@ const labels = {
   .ea-msg { margin: 0; font-size: 14px; }
   .ea-msg.bad { color: var(--accent); }
   .ea-privacy { margin: 0; font-size: 12px; line-height: 1.5; }
-  @media (max-width: 480px) {
+  /* Veld en knop naast elkaar; alleen op hele smalle schermen onder elkaar */
+  @media (max-width: 360px) {
     .ea-row { flex-direction: column; }
+  }
+  @media (max-width: 760px) {
+    .ea-row .btn { padding-left: 16px; padding-right: 16px; }
   }
 </style>
 
