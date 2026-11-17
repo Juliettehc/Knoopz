@@ -16,7 +16,13 @@ const enHref = lang === 'en' ? Astro.url.pathname : alternate;
       </button>
       <nav class="nav-desktop label" aria-label={t(lang, 'nav.main')}>
         <a class="nav-link" href={routes.home[lang]}>{t(lang, 'nav.home')}</a>
-        <a class="nav-link" href={routes.shop[lang]}>{t(lang, 'nav.shop')}</a>
+        <div class="nav-drop">
+          <a class="nav-link" href={routes.shop[lang]}>{t(lang, 'nav.shop')}</a>
+          <div class="drop-menu">
+            <a href={routes.shop[lang]}>{t(lang, 'nav.allProducts')}</a>
+            {drops.map((d) => <a href={dropPath(lang, d.slug)}>{d.name[lang]}</a>)}
+          </div>
+        </div>
         <a class="nav-link" href={routes.about[lang]}>{t(lang, 'nav.about')}</a>
         <a class="nav-link" href={routes.contact[lang]}>{t(lang, 'nav.contact')}</a>
       </nav>
@@ -77,6 +83,12 @@ const enHref = lang === 'en' ? Astro.url.pathname : alternate;
   .nav-desktop { display: flex; gap: 28px; align-items: center; }
   .nav-link { background: none; border: 0; padding: 0; text-decoration: none; font: inherit; letter-spacing: inherit; text-transform: inherit; min-height: 44px; display: inline-flex; align-items: center; gap: 6px; }
   .nav-link:hover { text-decoration: underline; text-underline-offset: 6px; }
+  /* Uitklapmenu onder Shop: Alle producten en de drops */
+  .nav-drop { position: relative; }
+  .drop-menu { position: absolute; top: 100%; left: -20px; min-width: 200px; display: flex; flex-direction: column; padding: 8px 0; background: var(--bg); border: 1px solid var(--line); visibility: hidden; opacity: 0; transition: opacity 0.15s, visibility 0.15s; }
+  .nav-drop:hover .drop-menu, .nav-drop:focus-within .drop-menu { visibility: visible; opacity: 1; }
+  .drop-menu a { padding: 10px 20px; text-decoration: none; white-space: nowrap; }
+  .drop-menu a:hover { text-decoration: underline; text-underline-offset: 6px; }
   .lang-switch { display: flex; gap: 6px; align-items: center; }
   .lang-switch a { text-decoration: none; color: var(--muted); }
   .lang-switch a[aria-current] { color: var(--ink); }

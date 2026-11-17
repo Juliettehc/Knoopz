@@ -2,7 +2,6 @@
 import { rich, textBlocks } from '../lib/rich';
 import Base from '../layouts/Base.astro';
 import ProductCard from '../components/ProductCard.astro';
-import ComingSoon from '../components/ComingSoon.astro';
 import { t, routes, type Lang } from '../i18n/ui';
 import type { Drop, Product } from '../data/catalog';
 
@@ -13,12 +12,23 @@ interface Props {
   crumbs: { label: string; href?: string }[];
   items: Product[];
   alternate: string;
-  comingSoon?: Drop; // dropspagina: zonder producten toont hij de foto met "Coming soon"
+  drop?: Drop; // dropspagina: de foto van de drop komt groot bovenaan, zoals op de homepage
 }
-const { lang, title, intro, crumbs, items, alternate, comingSoon } = Astro.props;
-const soon = comingSoon && items.length === 0;
+const { lang, title, intro, crumbs, items, alternate, drop } = Astro.props;
+// Een drop zonder producten is de volgende drop: dan "Coming soon" in plaats van de lijst.
+const soon = !!drop && items.length === 0;
+const photo = drop?.image;
 ---
 <Base lang={lang} title={title} alternate={alternate}>
+  {photo && (
+    <section class="hero">
+      <img class="hero-photo" src={photo} alt={title} fetchpriority="high" decoding="async" />
+      <div class="wrap hero-inner">
+        <span class="eyebrow">{soon ? title : t(lang, 'nav.shop')}</span>
+        <h1 class="h1">{soon ? t(lang, 'drop.comingSoon') : title}</h1>
+      </div>
+    </section>
+  )}
   <section class="wrap intro">
     <nav aria-label={lang === 'nl' ? 'Kruimelpad' : 'Breadcrumb'} class="crumbs muted">
       <a href={routes.home[lang]}>Home</a>
@@ -29,14 +39,13 @@ const soon = comingSoon && items.length === 0;
         </>
       ))}
     </nav>
-    <h1 class="h1">{title}</h1>
+    {!photo && <h1 class="h1">{title}</h1>}
+    {!photo && soon && <span class="eyebrow">{t(lang, 'drop.comingSoon')}</span>}
     {intro && textBlocks(intro, 'lead').map(({ Tag, cls, html }) => <Tag class={cls} set:html={html} />)}
   </section>
 
   {soon ? (
-    <section class="wrap listing">
-      <ComingSoon lang={lang} drop={comingSoon} />
-    </section>
+    <div class="listing"></div>
   ) : (
   <section class="wrap listing" data-listing>
     <div class="filters">
@@ -61,6 +70,17 @@ const soon = comingSoon && items.length === 0;
   .crumbs a:hover { text-decoration: underline; }
   .listing { padding-top: var(--s4); padding-bottom: var(--s6); display: flex; flex-direction: column; gap: 28px; }
   .count { font-size: 13px; }
+  /* Dropfoto bovenaan, in dezelfde stijl als de campagnefoto op de homepage */
+  .hero { position: relative; display: flex; align-items: flex-end; min-height: calc(100vh - var(--header-h)); min-height: calc(100svh - var(--header-h)); overflow: hidden; background: var(--surface); }
+  .hero-photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .hero::after { content: ''; position: absolute; inset: 0; background: linear-gradient(to right, rgba(0, 0, 0, 0.35), rgba(0, 0, 0, 0)), linear-gradient(to top, rgba(20, 20, 20, 0.45), rgba(20, 20, 20, 0) 55%); pointer-events: none; }
+  .hero-inner { position: relative; z-index: 1; width: 100%; padding-top: 80px; padding-bottom: 56px; display: flex; flex-direction: column; align-items: flex-start; gap: 22px; color: var(--white); }
+  .hero-inner .eyebrow { color: rgba(255, 255, 255, 0.85); }
+  .hero-inner .h1 { max-width: 640px; }
+  @media (max-width: 760px) {
+    .hero { min-height: 560px; }
+    .hero-inner { padding-bottom: 32px; gap: 16px; }
+  }
 </style>
 
 <script>

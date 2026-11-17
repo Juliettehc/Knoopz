@@ -723,7 +723,7 @@ async function viewDrops() {
       </div>
       <div class="a-row">
         <label class="a-field"><span>Webadres</span><input name="slug" value="${esc(d?.slug)}" placeholder="bijv. drop-02" /></label>
-        <label class="a-field"><span>Volgorde</span><input name="sort" type="number" value="${esc(d?.sort ?? 0)}" /><small>Lager getal = eerder; de eerste drop met producten staat op de homepage. Een drop zonder producten staat in het Shop-menu en toont op zijn eigen pagina de foto met Coming soon.</small></label>
+        <label class="a-field"><span>Volgorde</span><input name="sort" type="number" value="${esc(d?.sort ?? 0)}" /><small>Lager getal = eerder; de eerste drop met producten staat op de homepage. Een drop zonder producten staat wel in het Shop-menu en toont op zijn eigen pagina Coming soon.</small></label>
       </div>
       <label class="a-check"><input type="checkbox" name="published" ${d?.published ? 'checked' : ''} /> Zichtbaar op de website</label>
       <small class="muted">Uit = de drop en al zijn producten staan nog niet op de website, ook niet in de shop. Zo kun je een volgende drop alvast vullen. Zet hem aan en klik op "Wijzigingen publiceren" om alles in één keer online te zetten. Met early access (zie <a href="#/early-access">Early access</a>) komt hij pas online op de publieke start.</small>
@@ -741,8 +741,8 @@ async function viewDrops() {
     <div class="a-card a-slot a-drop-photo" data-drop-photo="${esc(d.id)}">
       <div class="a-slot-img" style="aspect-ratio:4/3;max-width:320px">${d.image_path ? `<img src="${esc(publicImageUrl(d.image_path))}" alt="" />` : '<span>Nog geen foto</span>'}</div>
       <div class="a-slot-info">
-        <strong>Foto in het Shop-menu en bij Coming soon</strong>
-        <small class="muted">Liggend werkt het best (4:3). Zonder eigen foto toont het menu de hoofdfoto van het eerste product in deze drop.</small>
+        <strong>Foto bovenaan de dropspagina</strong>
+        <small class="muted">Komt groot bovenaan de pagina van deze drop, net als de campagnefoto op de homepage. Liggend werkt het best. Heeft de drop nog geen producten, dan staat er Coming soon op de foto.</small>
         <div class="a-buttons">
           <label class="btn btn-outline" style="cursor:pointer">${d.image_path ? 'Vervangen' : 'Foto kiezen'}<input type="file" accept="image/jpeg,image/png,image/webp" hidden data-file /></label>
           ${d.image_path ? '<button type="button" class="a-link" data-remove>Verwijderen</button>' : ''}
