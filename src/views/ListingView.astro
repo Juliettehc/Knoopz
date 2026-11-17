@@ -2,8 +2,9 @@
 import { rich, textBlocks } from '../lib/rich';
 import Base from '../layouts/Base.astro';
 import ProductCard from '../components/ProductCard.astro';
+import ComingSoon from '../components/ComingSoon.astro';
 import { t, routes, type Lang } from '../i18n/ui';
-import type { Product } from '../data/catalog';
+import type { Drop, Product } from '../data/catalog';
 
 interface Props {
   lang: Lang;
@@ -12,8 +13,10 @@ interface Props {
   crumbs: { label: string; href?: string }[];
   items: Product[];
   alternate: string;
+  comingSoon?: Drop; // dropspagina: zonder producten toont hij de foto met "Coming soon"
 }
-const { lang, title, intro, crumbs, items, alternate } = Astro.props;
+const { lang, title, intro, crumbs, items, alternate, comingSoon } = Astro.props;
+const soon = comingSoon && items.length === 0;
 ---
 <Base lang={lang} title={title} alternate={alternate}>
   <section class="wrap intro">
@@ -30,6 +33,11 @@ const { lang, title, intro, crumbs, items, alternate } = Astro.props;
     {intro && textBlocks(intro, 'lead').map(({ Tag, cls, html }) => <Tag class={cls} set:html={html} />)}
   </section>
 
+  {soon ? (
+    <section class="wrap listing">
+      <ComingSoon lang={lang} drop={comingSoon} />
+    </section>
+  ) : (
   <section class="wrap listing" data-listing>
     <div class="filters">
       <div class="filter-group" role="group" aria-label={t(lang, 'filter.label')}>
@@ -43,6 +51,7 @@ const { lang, title, intro, crumbs, items, alternate } = Astro.props;
       {items.map((p) => <ProductCard lang={lang} product={p} />)}
     </div>
   </section>
+  )}
 </Base>
 
 <style>

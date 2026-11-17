@@ -1,0 +1,31 @@
+---
+// Blok voor een drop die al op de site staat maar nog geen producten heeft:
+// de foto van de drop (uit beheer, "Foto in het Shop-menu") met "Coming soon" eroverheen.
+import { t, type Lang } from '../i18n/ui';
+import type { Drop } from '../data/catalog';
+
+interface Props { lang: Lang; drop: Drop; href?: string }
+const { lang, drop, href } = Astro.props;
+const Tag = href ? 'a' : 'div';
+---
+<Tag class:list={['soon', drop.image ? 'soon-img' : 'soon-plain']} href={href}>
+  {drop.image && <img class="soon-photo" src={drop.image} alt={drop.name[lang]} loading="lazy" decoding="async" />}
+  <div class="soon-inner">
+    <span class="eyebrow">{drop.name[lang]}</span>
+    <span class="h1">{t(lang, 'drop.comingSoon')}</span>
+  </div>
+</Tag>
+
+<style>
+  .soon { position: relative; display: flex; align-items: flex-end; aspect-ratio: 16 / 9; overflow: hidden; background: var(--surface); color: var(--ink); text-decoration: none; }
+  .soon-photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: transform 0.6s ease; }
+  .soon-img::after { content: ''; position: absolute; inset: 0; background: linear-gradient(to top, rgba(20, 20, 20, 0.5), rgba(20, 20, 20, 0) 60%); pointer-events: none; }
+  .soon-inner { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 12px; padding: var(--s5); }
+  .soon-img .soon-inner { color: var(--white); }
+  .soon-img .eyebrow { color: rgba(255, 255, 255, 0.85); }
+  a.soon:hover .soon-photo { transform: scale(1.02); }
+  @media (max-width: 760px) {
+    .soon { aspect-ratio: 4 / 5; }
+    .soon-inner { padding: var(--s3); }
+  }
+</style>

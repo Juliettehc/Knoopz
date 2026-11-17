@@ -8,7 +8,9 @@ import { loadCatalog, productsInDrop } from '../data/catalog';
 interface Props { lang: Lang }
 const { lang } = Astro.props;
 const catalog = await loadCatalog();
-const drop = catalog.drops[0];
+// De homepage toont de eerste drop die al producten heeft; een drop zonder producten
+// (de volgende drop, "Coming soon") staat alleen in het Shop-menu en op zijn eigen pagina.
+const drop = catalog.drops.find((d) => productsInDrop(catalog, d.id).length > 0);
 const featured = drop ? productsInDrop(catalog, drop.id).slice(0, 4) : catalog.products.slice(0, 4);
 const shopHref = drop ? dropPath(lang, drop.slug) : routes.shop[lang];
 const dropName = drop ? drop.name[lang] : t(lang, 'nav.allProducts');

@@ -17,5 +17,6 @@ const other = lang === 'nl' ? 'en' : 'nl';
   intro={drop.intro[lang] || undefined}
   crumbs={[{ label: t(lang, 'nav.shop'), href: routes.shop[lang] }, { label: drop.name[lang] }]}
   items={items}
+  comingSoon={drop}
   alternate={dropPath(other, drop.slug)}
 />
