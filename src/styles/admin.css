@@ -181,3 +181,9 @@ body.admin { background: var(--bg); }
   .a-mail-preview iframe { height: 640px; }
 }
 .a-ship .a-field { max-width: 360px; margin-bottom: 16px; }
+.a-main h3 { font-size: 15px; font-weight: 500; margin: 24px 0 10px; }
+.a-heat { display: grid; grid-template-columns: 28px repeat(24, minmax(16px, 1fr)); gap: 2px; min-width: 480px; margin-bottom: 12px; }
+.a-heat-h, .a-heat-d { font-size: 11px; color: var(--muted); }
+.a-heat-d { align-self: center; }
+.a-heat-c { aspect-ratio: 1; min-height: 0; padding: 0; border: 0; cursor: pointer; }
+.a-heat-c:hover, .a-heat-c.on, .a-heat-c:focus-visible { outline: 2px solid var(--ink); outline-offset: -1px; }

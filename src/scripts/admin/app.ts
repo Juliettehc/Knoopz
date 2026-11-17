@@ -62,6 +62,18 @@ function isDirty() {
 }
 
 const euro = (cents: number | null) => (cents === null || cents === undefined ? '—' : new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(cents / 100));
+
+// Puntkomma en BOM, zodat Excel (NL) het meteen goed opent
+function downloadCsv(name: string, rows: (string | number)[][]) {
+  const q = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
+  const csv = '﻿' + rows.map((r) => r.map(q).join(';')).join('\r\n');
+  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  const a = Object.assign(document.createElement('a'), { href: url, download: name });
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
 function parseEuro(v: string): number | null {
   const s = v.trim().replace(/[€\s]/g, '').replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.');
   if (!s) return null;
@@ -1123,16 +1135,8 @@ async function viewEarlyAccess(dropId?: string) {
 
   // Aanmelders
   app.querySelector('[data-csv]')?.addEventListener('click', () => {
-    const q = (v: string) => `"${v.replace(/"/g, '""')}"`;
     const rows = [['email', 'bron', 'taal', 'aangemeld'], ...signups.map((s) => [s.email, sourceLabel(s.source), s.lang, new Date(s.created_at).toLocaleString('nl-NL')])];
-    // Puntkomma en BOM, zodat Excel (NL) het meteen goed opent
-    const csv = '﻿' + rows.map((r) => r.map(q).join(';')).join('\r\n');
-    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
-    const a = Object.assign(document.createElement('a'), { href: url, download: `early-access-aanmelders-${new Date().toISOString().slice(0, 10)}.csv` });
-    document.body.append(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    downloadCsv(`early-access-aanmelders-${new Date().toISOString().slice(0, 10)}.csv`, rows);
   });
   app.querySelectorAll<HTMLButtonElement>('[data-unsub]').forEach((b) =>
     b.addEventListener('click', async () => {
@@ -1582,7 +1586,10 @@ async function viewStats() {
   const { data: stepRows, error: stepError } = await sb.from('visit_steps').select('day,step,n');
   const { data: prodSteps, error: prodError } = await sb.from('product_steps').select('day,product_id,step,n');
   const { data: prods } = await sb.from('products').select('id,code,name_nl,published');
+  const { data: hourRows, error: hourError } = await fetchAllRows(() => sb.from('step_hours').select('day,hour,step,n').order('day').order('hour').order('step'));
+  const { data: signups } = await fetchAllRows(() => sb.from('early_access_signups').select('created_at').order('created_at'));
   let period = '30';
+  let metric: Metric = 'visit';
   let sortBy: 'most' | 'least' | 'sold' = 'most';
   const when = (r: any) => new Date(r.paid_at ?? r.created_at).getTime();
 
@@ -1599,6 +1606,13 @@ async function viewStats() {
     <p class="a-note">Bezoekers (aantallen, pagina's, waar ze vandaan komen) zie je in Cloudflare: Workers &amp; Pages → het Knoopz-project → Metrics → Web Analytics.</p>`;
 
   const box = app.querySelector<HTMLElement>('[data-stats]')!;
+  const activity = buildActivity(
+    stepRows,
+    hourRows,
+    !!hourError,
+    all.filter((r) => PAID.includes(r.status)),
+    signups ?? [],
+  );
   const render = (key: string) => {
     period = key;
     const days = PERIODS[key].days;
@@ -1704,6 +1718,8 @@ async function viewStats() {
         ${tile('Verkochte stuks', String(items.length))}
         ${tile('Afgerond', tried ? `${Math.round((paid.length / tried) * 100)}%` : '—', `${unpaid} afgehaakt bij betalen`)}
       </div>
+      <h2>Wanneer is er actie</h2>
+      <div data-activity></div>
       <h2>Waar haken bezoekers af</h2>
       ${funnelHtml}
       <h2>Per product</h2>
@@ -1737,6 +1753,14 @@ async function viewStats() {
         render(period);
       }),
     );
+    const actBox = box.querySelector<HTMLElement>('[data-activity]')!;
+    const actFrom = days ? addDays(amsDay(Date.now()), -(days - 1)) : '';
+    const showActivity = () =>
+      renderActivity(actBox, activity, actFrom, metric, (m) => {
+        metric = m;
+        showActivity();
+      });
+    showActivity();
   };
 
   app.querySelectorAll<HTMLButtonElement>('[data-p]').forEach((b) =>
@@ -1755,6 +1779,259 @@ const dayFmt = new Intl.DateTimeFormat('nl-NL', { weekday: 'short', day: 'numeri
 const fmtDay = (day: string) => dayFmt.format(new Date(`${day}T12:00:00Z`));
 const WEEKDAYS = ['maandag', 'dinsdag', 'woensdag', 'donderdag', 'vrijdag', 'zaterdag', 'zondag'];
 const weekdayOf = (day: string) => (new Date(`${day}T12:00:00Z`).getUTCDay() + 6) % 7; // 0 = maandag
+
+// Supabase geeft maximaal 1000 rijen per keer: haal ze in stukken op
+async function fetchAllRows(query: () => any): Promise<{ data: any[] | null; error: any }> {
+  const out: any[] = [];
+  for (let i = 0; ; i += 1000) {
+    const { data, error } = await query().range(i, i + 999);
+    if (error) return { data: null, error };
+    out.push(...data);
+    if (data.length < 1000) return { data: out, error: null };
+  }
+}
+
+// ---------- overzicht: wanneer is er actie (per dag, uur en weekdag) ----------
+type Metric = 'visit' | 'product' | 'cart' | 'orders' | 'signups';
+const METRICS: Record<Metric, { label: string; unit: string }> = {
+  visit: { label: 'Bezoeken', unit: 'bezoeken' },
+  product: { label: 'Product bekeken', unit: 'keer product bekeken' },
+  cart: { label: 'In winkelwagen', unit: 'keer in winkelwagen' },
+  orders: { label: 'Bestellingen', unit: 'bestellingen' },
+  signups: { label: 'Aanmeldingen', unit: 'aanmeldingen early access' },
+};
+const STEP_METRICS: Metric[] = ['visit', 'product', 'cart'];
+type DayRow = Record<Metric, number> & { cents: number };
+type Activity = {
+  days: Map<string, DayRow>;
+  hours: { day: string; hour: number; metric: Metric; n: number }[];
+  hourSince: string | null; // sinds wanneer bezoeken per uur geteld worden (migratie 017)
+  hourError: boolean;
+};
+const hourFmt = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Amsterdam', hour: '2-digit', hourCycle: 'h23' });
+const amsHour = (t: string | number | Date) => Number(hourFmt.format(new Date(t)));
+const hh = (h: number) => `${String(h % 24).padStart(2, '0')}:00`;
+const hourLabel = (h: number) => `${hh(h)}–${hh(h + 1)}`;
+const dateFmt = new Intl.DateTimeFormat('nl-NL', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+const fmtDate = (day: string) => dateFmt.format(new Date(`${day}T12:00:00Z`));
+const nl1 = (x: number) => x.toFixed(1).replace('.', ',');
+
+// Alles op één hoop: bezoekstappen (tellers), betaalde bestellingen en aanmeldingen (met tijdstip)
+function buildActivity(stepRows: any[] | null, hourRows: any[] | null, hourError: boolean, paidOrders: any[], signups: any[]): Activity {
+  const days = new Map<string, DayRow>();
+  const at = (day: string) => {
+    let x = days.get(day);
+    if (!x) days.set(day, (x = { visit: 0, product: 0, cart: 0, orders: 0, signups: 0, cents: 0 }));
+    return x;
+  };
+  (stepRows ?? []).forEach((r) => STEP_METRICS.includes(r.step) && (at(r.day)[r.step as Metric] += r.n));
+  const hours: Activity['hours'] = (hourRows ?? [])
+    .filter((r) => STEP_METRICS.includes(r.step))
+    .map((r) => ({ day: r.day, hour: r.hour, metric: r.step, n: r.n }));
+  const hourSince = hours.reduce<string | null>((m, r) => (!m || r.day < m ? r.day : m), null);
+  paidOrders.forEach((o) => {
+    const t = o.paid_at ?? o.created_at;
+    const d = at(amsDay(t));
+    d.orders++;
+    d.cents += o.total_cents || 0;
+    hours.push({ day: amsDay(t), hour: amsHour(t), metric: 'orders', n: 1 });
+  });
+  signups.forEach((s) => {
+    at(amsDay(s.created_at)).signups++;
+    hours.push({ day: amsDay(s.created_at), hour: amsHour(s.created_at), metric: 'signups', n: 1 });
+  });
+  return { days, hours, hourSince, hourError };
+}
+
+function renderActivity(el: HTMLElement, act: Activity, fromDay: string, metric: Metric, setMetric: (m: Metric) => void) {
+  const today = amsDay(Date.now());
+  const first = [...act.days.keys()].sort()[0] ?? today;
+  const start = fromDay && fromDay > first ? fromDay : first;
+  const dayList: string[] = [];
+  for (let d = start; d <= today; d = addDays(d, 1)) dayList.push(d);
+  const rows = dayList.map((day) => ({ day, ...(act.days.get(day) ?? { visit: 0, product: 0, cart: 0, orders: 0, signups: 0, cents: 0 }) }));
+  const m = METRICS[metric];
+  const total = rows.reduce((t, r) => t + r[metric], 0);
+  const avg = rows.length ? total / rows.length : 0;
+  const isPeak = (v: number) => v >= 3 && v >= 2 * avg;
+  const max = Math.max(1, ...rows.map((r) => r[metric]));
+  const busiest = rows.reduce((b, r) => (r[metric] > b[metric] ? r : b), rows[0]);
+
+  // Weekdag × uur
+  const grid = WEEKDAYS.map(() => Array<number>(24).fill(0));
+  act.hours.forEach((h) => h.metric === metric && h.day >= start && h.day <= today && (grid[weekdayOf(h.day)][h.hour] += h.n));
+  const perHour = Array.from({ length: 24 }, (_, h) => grid.reduce((t, w) => t + w[h], 0));
+  const hourMax = Math.max(...perHour);
+  const bestHour = hourMax ? perHour.indexOf(hourMax) : -1;
+  const cellMax = Math.max(1, ...grid.flat());
+  let bestCell = { w: -1, h: -1, n: 0 };
+  grid.forEach((w, wi) => w.forEach((n, h) => n > bestCell.n && (bestCell = { w: wi, h, n })));
+
+  // Gemiddeld per weekdag (uit de dagtellingen)
+  const wk = WEEKDAYS.map(() => ({ n: 0, days: 0 }));
+  rows.forEach((r) => {
+    const w = wk[weekdayOf(r.day)];
+    w.n += r[metric];
+    w.days++;
+  });
+  const wkAvg = wk.map((w) => (w.days ? w.n / w.days : 0));
+  const wkMax = Math.max(0.01, ...wkAvg);
+  const bestWk = wkAvg.some((x) => x > 0) ? wkAvg.indexOf(Math.max(...wkAvg)) : -1;
+
+  const isStep = STEP_METRICS.includes(metric);
+  const hourNote = !isStep
+    ? ''
+    : act.hourError
+      ? '<p class="a-note">Voer eerst migratie 017_bezoek_per_uur.sql uit in Supabase, dan wordt per uur bijgehouden hoe laat bezoekers komen. Bestellingen en aanmeldingen zie je per uur al wel.</p>'
+      : !act.hourSince
+        ? '<p class="a-note">Bezoeken per uur worden geteld vanaf nu; hier staat nog niets.</p>'
+        : act.hourSince > start
+          ? `<p class="a-note">Bezoeken per uur worden geteld sinds ${esc(fmtDate(act.hourSince))}; dagen daarvoor tellen per uur niet mee.</p>`
+          : '';
+
+  const tile = (label: string, value: string, sub = '') =>
+    `<div class="a-card a-stat"><span class="label">${label}</span><strong>${value}</strong>${sub ? `<small>${sub}</small>` : ''}</div>`;
+  const dayInfo = (r: (typeof rows)[number]) =>
+    `${fmtDate(r.day)}: ${r.visit} bezoeken, ${r.product} keer product bekeken, ${r.cart} keer in winkelwagen, ${r.orders} ${r.orders === 1 ? 'bestelling' : 'bestellingen'}${r.orders ? ` (${euro(r.cents)})` : ''}, ${r.signups} aanmeldingen${isPeak(r[metric]) ? ' · piek' : ''}`;
+
+  const every = Math.max(1, Math.ceil(rows.length / 6));
+  const dayBars = rows
+    .map((r, i) => {
+      const h = (r[metric] / max) * 100;
+      return `<button type="button" class="a-col${isPeak(r[metric]) ? ' peak' : ''}" data-day="${i}" aria-label="${esc(dayInfo(r))}" title="${esc(dayInfo(r))}">
+        <span class="a-col-v" style="height:${h}%"></span>
+        ${metric !== 'orders' && r.orders ? '<i class="a-col-s"></i>' : ''}
+        ${i % every === 0 || i === rows.length - 1 ? `<small>${esc(fmtDay(r.day).replace(/^\S+\s/, ''))}</small>` : ''}
+      </button>`;
+    })
+    .join('');
+  const hourInfo = (h: number) => `${hourLabel(h)}: ${perHour[h]} ${m.unit}`;
+  const hourBars = perHour
+    .map((n, h) => {
+      const t = hourInfo(h);
+      return `<button type="button" class="a-col${h === bestHour ? ' peak' : ''}" data-hour="${h}" aria-label="${esc(t)}" title="${esc(t)}">
+        <span class="a-col-v" style="height:${hourMax ? (n / hourMax) * 100 : 0}%"></span>
+        ${h % 3 === 0 ? `<small>${hh(h)}</small>` : ''}
+      </button>`;
+    })
+    .join('');
+  const cellInfo = (w: number, h: number) => `${WEEKDAYS[w]} ${hourLabel(h)}: ${grid[w][h]} ${m.unit}`;
+  const heat = `
+    <div class="a-heat">
+      <span></span>${perHour.map((_, h) => `<span class="a-heat-h">${h % 3 === 0 ? String(h).padStart(2, '0') : ''}</span>`).join('')}
+      ${WEEKDAYS.map(
+        (name, w) =>
+          `<span class="a-heat-d">${name.slice(0, 2)}</span>` +
+          grid[w]
+            .map((n, h) => {
+              const pct = n ? Math.round(12 + 88 * (n / cellMax)) : 0;
+              return `<button type="button" class="a-heat-c" data-cell="${w},${h}" aria-label="${esc(cellInfo(w, h))}" title="${esc(cellInfo(w, h))}" style="background:color-mix(in srgb, var(--accent) ${pct}%, var(--surface))"></button>`;
+            })
+            .join(''),
+      ).join('')}
+    </div>`;
+
+  const topDays = rows.filter((r) => r[metric] > 0).sort((a, b) => b[metric] - a[metric]).slice(0, 10);
+  const table = (head: string[], body: string[][], empty: string) => `
+    <div class="a-scroll"><table class="a-table">
+      <thead><tr>${head.map((h) => `<th>${h}</th>`).join('')}</tr></thead>
+      <tbody>${body.length ? body.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('') : `<tr><td colspan="${head.length}" class="muted">${empty}</td></tr>`}</tbody>
+    </table></div>`;
+
+  el.innerHTML = `
+    <div class="a-filters a-sortbar" role="group" aria-label="Wat tellen">
+      ${(Object.keys(METRICS) as Metric[]).map((k) => `<button class="filter" aria-pressed="${k === metric}" data-metric="${k}">${METRICS[k].label}</button>`).join('')}
+    </div>
+    <div class="a-stats">
+      ${tile('Drukste dag', busiest?.[metric] ? esc(fmtDay(busiest.day)) : '—', busiest?.[metric] ? `${busiest[metric]} ${m.unit}` : '')}
+      ${tile('Drukste uur', bestHour >= 0 ? hh(bestHour) : '—', bestHour >= 0 ? `${hourLabel(bestHour)}: ${hourMax} ${m.unit}` : '')}
+      ${tile('Drukste weekdag', bestWk >= 0 ? WEEKDAYS[bestWk] : '—', bestWk >= 0 ? `gemiddeld ${nl1(wkAvg[bestWk])} per dag` : '')}
+      ${tile('Beste moment', bestCell.n ? `${WEEKDAYS[bestCell.w].slice(0, 2)} ${hh(bestCell.h)}` : '—', bestCell.n ? `${WEEKDAYS[bestCell.w]} ${hourLabel(bestCell.h)}: ${bestCell.n} ${m.unit}` : '')}
+    </div>
+    <h3>${esc(m.label)} per dag</h3>
+    <div class="a-card a-chart">
+      <div class="a-chart-max">${max}</div>
+      <div class="a-chart-bars">${dayBars}</div>
+      <p class="a-chart-info" data-dayinfo aria-live="polite">Totaal ${total} ${esc(m.unit)}, gemiddeld ${nl1(avg)} per dag. Wijs of tik een dag aan voor alle cijfers van die dag.</p>
+      <p class="a-legend"><span><i class="k-v"></i>${esc(m.label)}</span><span><i class="k-p"></i>Piek (2× gemiddeld)</span>${metric !== 'orders' ? '<span><i class="k-s"></i>Dag met bestelling</span>' : ''}</p>
+    </div>
+    <h3>${esc(m.label)} per uur</h3>
+    ${hourNote}
+    <div class="a-card a-chart">
+      <div class="a-chart-max">${hourMax}</div>
+      <div class="a-chart-bars">${hourBars}</div>
+      <p class="a-chart-info" data-hourinfo aria-live="polite">Alle dagen in deze periode bij elkaar, Nederlandse tijd. Wijs of tik een uur aan.</p>
+    </div>
+    <h3>Weekdag × uur</h3>
+    <div class="a-card">
+      <div class="a-scroll">${heat}</div>
+      <p class="a-chart-info" data-cellinfo aria-live="polite">Hoe donkerder, hoe drukker. Wijs of tik een vakje aan.</p>
+    </div>
+    <h3>Per weekdag</h3>
+    ${table(
+      ['Weekdag', 'Gemiddeld per dag', ''],
+      WEEKDAYS.map((name, i) => [name, nl1(wkAvg[i]), `<span class="a-bar"><span style="width:${Math.round((wkAvg[i] / wkMax) * 100)}%"></span></span>`]),
+      '',
+    )}
+    <h3>Drukste dagen</h3>
+    ${table(
+      ['Dag', 'Bezoeken', 'Product bekeken', 'In winkelwagen', 'Bestellingen', 'Omzet', 'Aanmeldingen'],
+      topDays.map((r) => [esc(fmtDate(r.day)), String(r.visit), String(r.product), String(r.cart), String(r.orders), esc(euro(r.cents)), String(r.signups)]),
+      'Nog niets in deze periode.',
+    )}
+    <div class="a-buttons">
+      <button class="btn btn-outline" data-csv-days>Download per dag (CSV)</button>
+      <button class="btn btn-outline" data-csv-hours>Download per uur (CSV)</button>
+    </div>
+    <p class="a-note">Leg de drukke dagen en uren naast je posts en stories om te zien wat werkt. Elke stap telt één keer per bezoek; bestellingen tellen op het moment van betalen.</p>`;
+
+  el.querySelectorAll<HTMLButtonElement>('[data-metric]').forEach((b) => b.addEventListener('click', () => setMetric(b.dataset.metric as Metric)));
+  const hover = (sel: string, infoSel: string, text: (b: HTMLElement) => string) => {
+    const info = el.querySelector<HTMLElement>(infoSel)!;
+    el.querySelectorAll<HTMLElement>(sel).forEach((b) => {
+      const show = () => {
+        info.textContent = text(b);
+        el.querySelectorAll(sel).forEach((x) => x.classList.toggle('on', x === b));
+      };
+      b.addEventListener('mouseenter', show);
+      b.addEventListener('focus', show);
+      b.addEventListener('click', show);
+    });
+  };
+  hover('[data-day]', '[data-dayinfo]', (b) => dayInfo(rows[Number(b.dataset.day)]));
+  hover('[data-hour]', '[data-hourinfo]', (b) => hourInfo(Number(b.dataset.hour)));
+  hover('[data-cell]', '[data-cellinfo]', (b) => {
+    const [w, h] = b.dataset.cell!.split(',').map(Number);
+    return cellInfo(w, h);
+  });
+
+  el.querySelector('[data-csv-days]')!.addEventListener('click', () =>
+    downloadCsv(`knoopz-per-dag-${today}.csv`, [
+      ['datum', 'weekdag', 'bezoeken', 'product bekeken', 'in winkelwagen', 'bestellingen', 'omzet', 'aanmeldingen'],
+      ...rows.map((r) => [r.day, WEEKDAYS[weekdayOf(r.day)], r.visit, r.product, r.cart, r.orders, (r.cents / 100).toFixed(2).replace('.', ','), r.signups]),
+    ]),
+  );
+  el.querySelector('[data-csv-hours]')!.addEventListener('click', () => {
+    const byHour = new Map<string, Record<Metric, number>>();
+    act.hours
+      .filter((h) => h.day >= start && h.day <= today)
+      .forEach((h) => {
+        const k = `${h.day} ${String(h.hour).padStart(2, '0')}`;
+        const x = byHour.get(k) ?? { visit: 0, product: 0, cart: 0, orders: 0, signups: 0 };
+        x[h.metric] += h.n;
+        byHour.set(k, x);
+      });
+    downloadCsv(`knoopz-per-uur-${today}.csv`, [
+      ['datum', 'weekdag', 'uur', 'bezoeken', 'product bekeken', 'in winkelwagen', 'bestellingen', 'aanmeldingen'],
+      ...[...byHour.entries()]
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([k, x]) => {
+          const [day, h] = k.split(' ');
+          return [day, WEEKDAYS[weekdayOf(day)], hourLabel(Number(h)), x.visit, x.product, x.cart, x.orders, x.signups];
+        }),
+    ]);
+  });
+}
 
 async function viewProductStats(id: string) {
   app.innerHTML = '<p class="muted">Cijfers laden…</p>';
