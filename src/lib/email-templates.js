@@ -187,7 +187,7 @@ function layout({ origin, lang, preheader, body, footer }) {
 <link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:wght@500&family=Jost:wght@400;500;600&display=swap" rel="stylesheet">
 <title>KNOOPZ</title></head>
 <body style="margin:0;padding:0;background:${C.bg};-webkit-font-smoothing:antialiased">
-<div style="display:none;max-height:0;overflow:hidden;opacity:0">${esc(preheader)}</div>
+<div style="display:none;max-height:0;overflow:hidden;opacity:0">${esc(preheader)}${'&#847;&zwnj;&nbsp;'.repeat(90)}</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${C.bg}"><tr><td align="center" style="padding:40px 16px">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px">
 <tr><td align="center" style="padding:0 0 32px"><a href="${esc(home)}" style="text-decoration:none"><img src="${esc(origin)}/knoopz-logo.png" width="180" alt="KNOOPZ" style="display:block;width:180px;max-width:60%;height:auto;border:0"></a></td></tr>
@@ -248,7 +248,9 @@ export function renderEmail(key, o, overrides, opts) {
 
   return {
     subject: (o.needs_attention && key === 'admin_new' ? 'LET OP: ' : '') + subject,
-    html: layout({ origin: opts.origin, lang, preheader: fill(get('heading'), v).replace(/\*\*/g, ''), body, footer }),
+    // Voorbeeldtekst onder het onderwerp in de inbox: het begin van de tekst, niet de kop
+    // (die herhaalt vaak het onderwerp). De opvulling erna voorkomt dat de inbox daarna de kop en tekst nog eens toont.
+    html: layout({ origin: opts.origin, lang, preheader: fill(get('body'), v).replace(/\*\*/g, '').replace(/\s+/g, ' ').trim(), body, footer }),
   };
 }
 
