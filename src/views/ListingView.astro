@@ -2,6 +2,7 @@
 import { rich, textBlocks } from '../lib/rich';
 import Base from '../layouts/Base.astro';
 import ProductCard from '../components/ProductCard.astro';
+import EarlyAccessForm from '../components/EarlyAccessForm.astro';
 import { t, routes, type Lang } from '../i18n/ui';
 import type { Drop, Product } from '../data/catalog';
 
@@ -45,7 +46,16 @@ const photo = drop?.image;
   </section>
 
   {soon ? (
-    <div class="listing"></div>
+    <section class="wrap listing">
+      <div class="soon-signup">
+        <div class="soon-text">
+          <span class="eyebrow">{t(lang, 'ea.label')}</span>
+          <h2 class="h2">{t(lang, 'ea.signupTitle')}</h2>
+          <p class="lead">{t(lang, 'ea.signupText')}</p>
+        </div>
+        <EarlyAccessForm lang={lang} />
+      </div>
+    </section>
   ) : (
   <section class="wrap listing" data-listing>
     <div class="filters">
@@ -70,6 +80,9 @@ const photo = drop?.image;
   .crumbs a:hover { text-decoration: underline; }
   .listing { padding-top: var(--s4); padding-bottom: var(--s6); display: flex; flex-direction: column; gap: 28px; }
   .count { font-size: 13px; }
+  /* Volgende drop zonder producten: aanmelden voor early access */
+  .soon-signup { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s5); align-items: end; padding-top: var(--s4); border-top: 1px solid var(--line); }
+  .soon-text { display: flex; flex-direction: column; gap: 16px; }
   /* Dropfoto bovenaan, in dezelfde stijl als de campagnefoto op de homepage */
   .hero { position: relative; display: flex; align-items: flex-end; min-height: calc(100vh - var(--header-h)); min-height: calc(100svh - var(--header-h)); overflow: hidden; background: var(--surface); }
   .hero-photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
@@ -80,6 +93,7 @@ const photo = drop?.image;
   @media (max-width: 760px) {
     .hero { min-height: 560px; }
     .hero-inner { padding-bottom: 32px; gap: 16px; }
+    .soon-signup { grid-template-columns: 1fr; gap: 24px; }
   }
 </style>
 
